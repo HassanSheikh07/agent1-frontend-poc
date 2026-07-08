@@ -9,6 +9,16 @@ import { CopilotStudioClient, CopilotStudioWebChat, CopilotStudioWebChatConnecti
 import { acquireToken } from './acquireToken'
 import { SampleConnectionSettings } from './settings'
 
+type ConsentCardInfo = {
+  title: string
+  connectorName: string
+  description: string
+  permissions: string
+  allowData: any
+  cancelData: any
+  replyToId?: string
+}
+
 function extractBetween (text: string, startMarker: string, endMarker: string): string {
   if (!text) {
     return ''
@@ -22,6 +32,171 @@ function extractBetween (text: string, startMarker: string, endMarker: string): 
   }
 
   return text.substring(start + startMarker.length, end).trim()
+}
+
+function stringifyActivity (activity: any): string {
+  try {
+    return JSON.stringify(activity, null, 2)
+  } catch {
+    return String(activity)
+  }
+}
+
+function collectTextFromCard (node: any): string[] {
+  const texts: string[] = []
+
+  if (!node || typeof node !== 'object') {
+    return texts
+  }
+
+  if (typeof node.text === 'string') {
+    texts.push(node.text)
+  }
+
+  if (typeof node.altText === 'string') {
+    texts.push(node.altText)
+  }
+
+  if (Array.isArray(node.inlines)) {
+    node.inlines.forEach((inline: any) => {
+      texts.push(...collectTextFromCard(inline))
+    })
+  }
+
+  if (Array.isArray(node.body)) {
+    node.body.forEach((item: any) => {
+      texts.push(...collectTextFromCard(item))
+    })
+  }
+
+  if (Array.isArray(node.items)) {
+    node.items.forEach((item: any) => {
+      texts.push(...collectTextFromCard(item))
+    })
+  }
+
+  if (Array.isArray(node.columns)) {
+    node.columns.forEach((column: any) => {
+      texts.push(...collectTextFromCard(column))
+    })
+  }
+
+  if (Array.isArray(node.actions)) {
+    node.actions.forEach((action: any) => {
+      texts.push(...collectTextFromCard(action))
+    })
+  }
+
+  return texts
+}
+
+function findSubmitActionData (node: any, title: string): any {
+  if (!node || typeof node !== 'object') {
+    return null
+  }
+
+  if (
+    node.type === 'Action.Submit' &&
+    typeof node.title === 'string' &&
+    node.title.toLowerCase() === title.toLowerCase()
+  ) {
+    return node.data || null
+  }
+
+  if (Array.isArray(node.actions)) {
+    for (const action of node.actions) {
+      const result = findSubmitActionData(action, title)
+      if (result) {
+        return result
+      }
+    }
+  }
+
+  if (Array.isArray(node.body)) {
+    for (const item of node.body) {
+      const result = findSubmitActionData(item, title)
+      if (result) {
+        return result
+      }
+    }
+  }
+
+  if (Array.isArray(node.items)) {
+    for (const item of node.items) {
+      const result = findSubmitActionData(item, title)
+      if (result) {
+        return result
+      }
+    }
+  }
+
+  if (Array.isArray(node.columns)) {
+    for (const column of node.columns) {
+      const result = findSubmitActionData(column, title)
+      if (result) {
+        return result
+      }
+    }
+  }
+
+  return null
+}
+
+function extractConsentCardInfo (activity: any): ConsentCardInfo | null {
+  if (activity?.name !== 'connectors/consentCard') {
+    return null
+  }
+
+  const attachment = activity?.attachments?.find((item: any) => {
+    return item?.contentType === 'application/vnd.microsoft.card.adaptive'
+  })
+
+  if (!attachment?.content) {
+    return null
+  }
+
+  const content = attachment.content
+  const allText = collectTextFromCard(content)
+
+  const title = allText.find(text => text.includes('Connect to continue')) || 'Connect to continue'
+  const description = allText.find(text => text.includes("I'll use your credentials")) || 'Connector permission is required to continue.'
+
+  let connectorName = 'Connector'
+
+  if (allText.some(text => text.toLowerCase() === 'sharepoint')) {
+    connectorName = 'SharePoint'
+  } else if (allText.some(text => text.toLowerCase().includes('dataverse'))) {
+    connectorName = 'Dataverse'
+  } else if (allText.some(text => text.toLowerCase().includes('power automate'))) {
+    connectorName = 'Power Automate'
+  }
+
+  const permissions =
+    allText.find(text => text.includes('Create file')) ||
+    allText.find(text => text.includes('This connection can')) ||
+    'This connector needs permission to continue.'
+
+  const allowData = findSubmitActionData(content, 'Allow') || {
+    action: 'Allow',
+    id: 'submit',
+    shouldAwaitUserInput: true
+  }
+
+  const cancelData = findSubmitActionData(content, 'Cancel') || {
+    action: 'Cancel',
+    id: 'submit',
+    shouldAwaitUserInput: true
+  }
+
+  return {
+    title,
+    connectorName,
+    description,
+    permissions,
+    allowData,
+    cancelData,
+    replyToId: activity?.id
+  }
 }
 
 function Chat () {
@@ -52,6 +227,7 @@ function Chat () {
   const [agent2Instruction, setAgent2Instruction] = useState('')
   const [fullResponse, setFullResponse] = useState('')
   const [isLoading, setIsLoading] = useState(false)
+  const [consentCard, setConsentCard] = useState<ConsentCardInfo | null>(null)
 
   const webchatSettings = { showTyping: true }
 
@@ -75,14 +251,7 @@ function Chat () {
           console.log('Incoming activity from Agent:', activity)
 
           const isFrontendUserActivity = activity?.from?.id === 'frontend-user'
-
-          let rawActivity = ''
-
-          try {
-            rawActivity = JSON.stringify(activity, null, 2)
-          } catch {
-            rawActivity = String(activity)
-          }
+          const rawActivity = stringifyActivity(activity)
 
           if (!isFrontendUserActivity) {
             setFullResponse(previous => {
@@ -90,6 +259,15 @@ function Chat () {
                 ? previous + '\n\n---------------------- RAW ACTIVITY ----------------------\n\n' + rawActivity
                 : rawActivity
             })
+          }
+
+          const detectedConsentCard = extractConsentCardInfo(activity)
+
+          if (detectedConsentCard && !isFrontendUserActivity) {
+            setConsentCard(detectedConsentCard)
+            setIsLoading(false)
+            setStatus(`${detectedConsentCard.connectorName} permission required. Click Allow to continue.`)
+            return
           }
 
           if (activity?.attachments?.length > 0 && !isFrontendUserActivity) {
@@ -185,10 +363,60 @@ function Chat () {
     }
   }
 
+  function sendConsentResponse (action: 'Allow' | 'Cancel') {
+    if (!connection || !consentCard) {
+      setStatus('Consent card is not ready.')
+      return
+    }
+
+    const selectedData = action === 'Allow' ? consentCard.allowData : consentCard.cancelData
+
+    const activity: any = {
+      type: 'message',
+      from: {
+        id: 'frontend-user',
+        name: 'Frontend User',
+        role: 'user'
+      },
+      text: action,
+      value: selectedData,
+      textFormat: 'plain',
+      locale: 'en-US'
+    }
+
+    if (consentCard.replyToId) {
+      activity.replyToId = consentCard.replyToId
+    }
+
+    try {
+      const directLineConnection = connection as any
+
+      setIsLoading(true)
+      setStatus(`${action} sent. Waiting for Agent 1 to continue...`)
+
+      directLineConnection.postActivity(activity).subscribe(
+        () => {
+          setConsentCard(null)
+          setStatus(`${action} response sent. Waiting for Agent 1 response...`)
+        },
+        (error: any) => {
+          console.error('Failed to send consent response:', error)
+          setIsLoading(false)
+          setStatus('Failed to send connector permission response. Check browser console.')
+        }
+      )
+    } catch (error) {
+      console.error('Consent response error:', error)
+      setIsLoading(false)
+      setStatus('Failed to send connector permission response. Check browser console.')
+    }
+  }
+
   function generateOutput () {
     setCsvOutput('')
     setAgent2Instruction('')
     setFullResponse('')
+    setConsentCard(null)
 
     const message = `
 User request:
@@ -230,6 +458,8 @@ Please review the generated CSV test cases and Agent 2 execution instruction. Re
   }
 
   function sendChanges () {
+    setConsentCard(null)
+
     const message = `
 Please revise the generated outputs based on the following feedback:
 
@@ -266,6 +496,8 @@ Agent 2 Execution Instruction:
   }
 
   function approveAndSave () {
+    setConsentCard(null)
+
     const message = `
 Approved. Please proceed with saving.
 
@@ -371,6 +603,40 @@ SharePoint CSV Link:
               Send Changes
             </button>
           </div>
+
+          {consentCard && (
+            <div style={styles.consentCard}>
+              <div style={styles.consentIcon}>!</div>
+              <h2 style={styles.consentTitle}>{consentCard.title}</h2>
+              <p style={styles.consentDescription}>
+                Agent 1 needs permission to use <strong>{consentCard.connectorName}</strong> before it can continue the save step.
+              </p>
+              <p style={styles.consentDescription}>{consentCard.description}</p>
+
+              <div style={styles.permissionBox}>
+                <div style={styles.permissionLabel}>Permission request</div>
+                <div style={styles.permissionText}>{consentCard.permissions}</div>
+              </div>
+
+              <div style={styles.buttonRow}>
+                <button
+                  onClick={() => sendConsentResponse('Allow')}
+                  disabled={isLoading}
+                  style={isLoading ? styles.successButtonDisabled : styles.successButton}
+                >
+                  Allow
+                </button>
+
+                <button
+                  onClick={() => sendConsentResponse('Cancel')}
+                  disabled={isLoading}
+                  style={isLoading ? styles.secondaryButtonDisabled : styles.cancelButton}
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
         <div style={styles.rightColumn}>
@@ -533,6 +799,57 @@ const styles: { [key: string]: React.CSSProperties } = {
     border: '1px solid #e2e8f0',
     boxShadow: '0 18px 45px rgba(15,23,42,0.08)'
   },
+  consentCard: {
+    background: '#ffffff',
+    borderRadius: '20px',
+    padding: '22px',
+    border: '2px solid #bfdbfe',
+    boxShadow: '0 18px 45px rgba(37,99,235,0.16)'
+  },
+  consentIcon: {
+    width: '34px',
+    height: '34px',
+    borderRadius: '50%',
+    background: '#dbeafe',
+    color: '#1d4ed8',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontWeight: 900,
+    marginBottom: '12px'
+  },
+  consentTitle: {
+    margin: 0,
+    fontSize: '20px',
+    fontWeight: 900,
+    color: '#0f172a'
+  },
+  consentDescription: {
+    margin: '8px 0 0 0',
+    fontSize: '14px',
+    color: '#475569',
+    lineHeight: 1.5
+  },
+  permissionBox: {
+    marginTop: '14px',
+    background: '#f8fafc',
+    border: '1px solid #cbd5e1',
+    borderRadius: '14px',
+    padding: '12px'
+  },
+  permissionLabel: {
+    fontSize: '12px',
+    fontWeight: 800,
+    color: '#475569',
+    textTransform: 'uppercase',
+    marginBottom: '6px'
+  },
+  permissionText: {
+    fontSize: '13px',
+    color: '#0f172a',
+    lineHeight: 1.5,
+    whiteSpace: 'pre-wrap'
+  },
   cardTitle: {
     margin: 0,
     fontSize: '18px',
@@ -633,6 +950,15 @@ const styles: { [key: string]: React.CSSProperties } = {
     color: '#ffffff',
     fontWeight: 800,
     cursor: 'not-allowed'
+  },
+  cancelButton: {
+    border: 'none',
+    borderRadius: '12px',
+    padding: '12px 18px',
+    background: '#64748b',
+    color: '#ffffff',
+    fontWeight: 800,
+    cursor: 'pointer'
   },
   outputHeader: {
     display: 'flex',
