@@ -72,16 +72,37 @@ function Chat () {
         const directLineConnection = newConnection as any
 
         activitySubscription = directLineConnection.activity$.subscribe((activity: any) => {
+          console.log('Incoming activity from Agent:', activity)
+
+          const isFrontendUserActivity = activity?.from?.id === 'frontend-user'
+
+          let rawActivity = ''
+
+          try {
+            rawActivity = JSON.stringify(activity, null, 2)
+          } catch {
+            rawActivity = String(activity)
+          }
+
+          if (!isFrontendUserActivity) {
+            setFullResponse(previous => {
+              return previous
+                ? previous + '\n\n---------------------- RAW ACTIVITY ----------------------\n\n' + rawActivity
+                : rawActivity
+            })
+          }
+
+          if (activity?.attachments?.length > 0 && !isFrontendUserActivity) {
+            setIsLoading(false)
+            setStatus('Agent returned a card/attachment. Check "View full raw Agent 1 response".')
+          }
+
           if (
             activity?.type === 'message' &&
             activity?.text &&
-            activity?.from?.id !== 'frontend-user'
+            !isFrontendUserActivity
           ) {
             const botText = activity.text
-
-            setFullResponse(previous => {
-              return previous ? previous + '\n\n' + botText : botText
-            })
 
             const extractedCsv = extractBetween(botText, '---CSV START---', '---CSV END---')
             const extractedAgentInstruction = extractBetween(
@@ -679,17 +700,18 @@ const styles: { [key: string]: React.CSSProperties } = {
   rawResponseBox: {
     marginTop: '14px',
     width: '100%',
-    minHeight: '180px',
+    minHeight: '260px',
     resize: 'vertical',
     boxSizing: 'border-box',
     border: '1px solid #cbd5e1',
     borderRadius: '14px',
     padding: '14px',
-    fontSize: '13px',
+    fontSize: '12px',
     lineHeight: 1.5,
+    fontFamily: 'Consolas, Monaco, monospace',
     outline: 'none',
-    background: '#f8fafc',
-    color: '#0f172a'
+    background: '#020617',
+    color: '#a7f3d0'
   }
 }
 
