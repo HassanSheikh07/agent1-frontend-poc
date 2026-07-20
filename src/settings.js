@@ -25,6 +25,7 @@ export class SampleConnectionSettings extends ConnectionSettings {
      // Paste the Connection string copied from:
      // Channels → Web app → Microsoft 365 Agents SDK → Connection string
      directConnectUrl: 'https://20bbbb7691c1efdebf328a54683361.04.environment.api.powerplatform.com/copilotstudio/dataverse-backed/authenticated/bots/cr720_Agent1TestScript/conversations?api-version=2022-03-01-preview',
+     directConnectUrl2 : 'https://20bbbb7691c1efdebf328a54683361.04.environment.api.powerplatform.com/copilotstudio/dataverse-backed/authenticated/bots/cr720_Agent2UITesting/conversations?api-version=2022-03-01-preview',
 
 
 

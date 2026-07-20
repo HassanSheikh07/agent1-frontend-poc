@@ -26,7 +26,7 @@ type SavedTestCase = {
   instruction: string
 }
 
-function extractBetween (text: string, startMarker: string, endMarker: string): string {
+function extractBetween(text: string, startMarker: string, endMarker: string): string {
   if (!text) {
     return ''
   }
@@ -41,25 +41,32 @@ function extractBetween (text: string, startMarker: string, endMarker: string): 
   return text.substring(start + startMarker.length, end).trim()
 }
 
-function extractCsvFileName (text: string): string {
+function extractCsvFileName(text: string): string {
   if (!text) {
     return ''
   }
 
-  const csvFileNameMatch = text.match(/CSV File Name:\s*([^\n\r]+)/i)
-  if (csvFileNameMatch?.[1]) {
-    return csvFileNameMatch[1].trim()
+  // Normalize string by removing markdown bolding and replacing escaped JSON newlines
+  const cleanText = text.replace(/\\n/g, '\n').replace(/\*\*/g, '')
+
+  // Attempt to find Script Name first
+  const scriptNameMatch = cleanText.match(/Script Name:\s*([^\n\r]+)/i)
+  if (scriptNameMatch?.[1]) {
+    // Remove any trailing commas or quotes from JSON formatting
+    return scriptNameMatch[1].replace(/["',]+$/g, '').trim()
   }
 
-  const scriptNameMatch = text.match(/Script Name:\s*([^\n\r]+)/i)
-  if (scriptNameMatch?.[1]) {
-    return scriptNameMatch[1].trim()
+  // Fallback to CSV File Name
+  const csvFileNameMatch = cleanText.match(/CSV File Name:\s*([^\n\r]+)/i)
+  if (csvFileNameMatch?.[1]) {
+    // Remove any trailing commas or quotes from JSON formatting
+    return csvFileNameMatch[1].replace(/["',]+$/g, '').trim()
   }
 
   return ''
 }
 
-function stringifyActivity (activity: any): string {
+function stringifyActivity(activity: any): string {
   try {
     return JSON.stringify(activity, null, 2)
   } catch {
@@ -67,7 +74,7 @@ function stringifyActivity (activity: any): string {
   }
 }
 
-function collectTextFromCard (node: any): string[] {
+function collectTextFromCard(node: any): string[] {
   const texts: string[] = []
 
   if (!node || typeof node !== 'object') {
@@ -115,7 +122,7 @@ function collectTextFromCard (node: any): string[] {
   return texts
 }
 
-function findSubmitActionData (node: any, title: string): any {
+function findSubmitActionData(node: any, title: string): any {
   if (!node || typeof node !== 'object') {
     return null
   }
@@ -167,7 +174,7 @@ function findSubmitActionData (node: any, title: string): any {
   return null
 }
 
-function extractConsentCardInfo (activity: any): ConsentCardInfo | null {
+function extractConsentCardInfo(activity: any): ConsentCardInfo | null {
   if (activity?.name !== 'connectors/consentCard') {
     return null
   }
@@ -224,7 +231,7 @@ function extractConsentCardInfo (activity: any): ConsentCardInfo | null {
   }
 }
 
-function Chat () {
+function Chat() {
   let agentsSettings: SampleConnectionSettings
 
   try {
@@ -243,10 +250,12 @@ function Chat () {
       directConnectUrl: ''
     } as SampleConnectionSettings
   }
-
+  // Add this alongside your other useState hooks
+  const [playingTestCaseId, setPlayingTestCaseId] = useState<number | null>(null)
   const [connection, setConnection] = useState<CopilotStudioWebChatConnection | null>(null)
+  const [connection2, setConnection2] = useState<CopilotStudioWebChatConnection | null>(null)
   const [status, setStatus] = useState('Connecting to Agent 1...')
-  const [instruction, setInstruction] = useState('I want you to create a customer in F&O add demo values for all the required fields')
+  const [instruction, setInstruction] = useState('I want you to ....')
   const [feedback, setFeedback] = useState('')
   const [csvOutput, setCsvOutput] = useState('')
   const [agent2Instruction, setAgent2Instruction] = useState('')
@@ -255,15 +264,19 @@ function Chat () {
   const [isLoading, setIsLoading] = useState(false)
   const [consentCard, setConsentCard] = useState<ConsentCardInfo | null>(null)
   const [savedTestCases, setSavedTestCases] = useState<SavedTestCase[]>([])
+  const [selectedSavedTestCase, setSelectedSavedTestCase] = useState<SavedTestCase | null>(null)
+  const [currentOutputSaved, setCurrentOutputSaved] = useState(false)
 
   const webchatSettings = { showTyping: true }
 
   useEffect(() => {
     let activitySubscription: any = null
+    let activitySubscription2: any = null
     let cancelled = false
 
-    async function connectToAgent () {
+    async function connectToAgent() {
       try {
+
         const token = await acquireToken(agentsSettings)
         const client = new CopilotStudioClient(agentsSettings, token)
         const newConnection = CopilotStudioWebChat.createConnection(client, webchatSettings)
@@ -307,6 +320,7 @@ function Chat () {
             activity?.text &&
             !isFrontendUserActivity
           ) {
+            setCurrentOutputSaved(false)
             const botText = activity.text
 
             const extractedCsv = extractBetween(botText, '---CSV START---', '---CSV END---')
@@ -338,6 +352,27 @@ function Chat () {
 
         setConnection(newConnection)
         setStatus('Connected to Agent 1.')
+
+        try {
+          const agent2Settings = new SampleConnectionSettings()
+          agent2Settings.directConnectUrl = agent2Settings.directConnectUrl2 || ''
+          const agent2Token = await acquireToken(agent2Settings)
+          const agent2Client = new CopilotStudioClient(agent2Settings, agent2Token)
+          const newConnection2 = CopilotStudioWebChat.createConnection(agent2Client, webchatSettings)
+
+          if (!cancelled) {
+            // Subscribe to Agent 2 to initialize the connection properly
+            const directLineConnection2 = newConnection2 as any
+            activitySubscription2 = directLineConnection2.activity$.subscribe((activity: any) => {
+              // You can log Agent 2's responses here if you want to track its execution status
+              console.log('Incoming activity from Agent 2:', activity)
+            })
+
+            setConnection2(newConnection2)
+          }
+        } catch (agent2Error) {
+          console.error('Failed to connect Agent 2:', agent2Error)
+        }
       } catch (error) {
         console.error(error)
         setIsLoading(false)
@@ -353,10 +388,16 @@ function Chat () {
       if (activitySubscription) {
         activitySubscription.unsubscribe()
       }
+
+      // Add Agent 2 cleanup
+      if (activitySubscription2) {
+        activitySubscription2.unsubscribe()
+      }
     }
   }, [])
 
-  function sendMessageToAgent (message: string) {
+
+  function sendMessageToAgent(message: string) {
     if (!connection) {
       setStatus('Agent connection is not ready yet.')
       return
@@ -397,7 +438,7 @@ function Chat () {
     }
   }
 
-  function sendConsentResponse (action: 'Allow' | 'Cancel') {
+  function sendConsentResponse(action: 'Allow' | 'Cancel') {
     if (!connection || !consentCard) {
       setStatus('Consent card is not ready.')
       return
@@ -446,12 +487,14 @@ function Chat () {
     }
   }
 
-  function generateOutput () {
+  function generateOutput() {
     setCsvOutput('')
     setAgent2Instruction('')
     setCurrentTestCaseName('')
     setFullResponse('')
     setConsentCard(null)
+    setSelectedSavedTestCase(null)
+    setCurrentOutputSaved(false)
 
     const message = `
 User request:
@@ -470,6 +513,9 @@ Important:
 Display both outputs and ask for approval.
 
 Use this exact format:
+
+Script Name:
+<script-name>
 
 CSV File Name:
 <csv-file-name.csv>
@@ -492,7 +538,7 @@ Please review the generated CSV test cases and Agent 2 execution instruction. Re
     sendMessageToAgent(message)
   }
 
-  function sendChanges () {
+  function sendChanges() {
     setConsentCard(null)
 
     const message = `
@@ -510,6 +556,9 @@ Important:
 Show the revised CSV test cases and Agent 2 execution instruction again for approval.
 
 Use this exact format:
+
+Script Name:
+<revised-script-name>
 
 CSV File Name:
 <csv-file-name.csv>
@@ -530,10 +579,20 @@ Agent 2 Execution Instruction:
     sendMessageToAgent(message)
   }
 
-  function approveAndSave () {
+  function getResolvedSavedName() {
+    const responseName = extractCsvFileName(`${fullResponse}\n${currentTestCaseName}\n${csvOutput}\n${agent2Instruction}`)
+    return responseName || currentTestCaseName || 'Generated Test Case'
+  }
+
+  function approveAndSave() {
     setConsentCard(null)
 
-    const resolvedName = currentTestCaseName || extractCsvFileName(instruction) || 'Generated Test Case'
+    if (currentOutputSaved) {
+      setStatus('The current generated output has already been saved. Generate a new output to save another test case.')
+      return
+    }
+
+    const resolvedName = getResolvedSavedName()
     const savedTestCase: SavedTestCase = {
       id: Date.now(),
       name: resolvedName,
@@ -542,6 +601,8 @@ Agent 2 Execution Instruction:
     }
 
     setSavedTestCases(previous => [...previous, savedTestCase])
+    setSelectedSavedTestCase(savedTestCase)
+    setCurrentOutputSaved(true)
     setStatus(`Saved test case "${resolvedName}" to the list.`)
 
     const message = `
@@ -574,9 +635,71 @@ SharePoint CSV Link:
     sendMessageToAgent(message)
   }
 
-  function handlePlaySavedTestCase (testCase: SavedTestCase) {
-    console.log('Play clicked for saved test case:', testCase)
-    setStatus(`Playing saved test case "${testCase.name}".`)
+  function handleSelectSavedTestCase(testCase: SavedTestCase) {
+    setSelectedSavedTestCase(testCase)
+  }
+
+  function clearSelectedSavedTestCase() {
+    setSelectedSavedTestCase(null)
+  }
+
+  function handlePlaySavedTestCase(testCase: SavedTestCase) {
+    if (!connection2) {
+      setStatus('Agent 2 connection is not ready yet.')
+      return
+    }
+
+    // Only set the loading state if the connection exists
+    setPlayingTestCaseId(testCase.id)
+
+    const message = `
+Play the saved test case: ${testCase.name}
+
+Use the saved CSV content and instruction for this test case.
+
+CSV Content:
+${testCase.csvContent}
+
+Agent 2 Instruction:
+${testCase.instruction}
+`
+
+    const activity = {
+      type: 'message',
+      from: {
+        id: 'frontend-user',
+        name: 'Frontend User',
+        role: 'user'
+      },
+      text: message,
+      textFormat: 'plain',
+      locale: 'en-US'
+    }
+
+    try {
+      const directLineConnection = connection2 as any
+      setIsLoading(true)
+      setStatus(`Running saved test case "${testCase.name}" via Agent 2...`)
+
+      directLineConnection.postActivity(activity).subscribe(
+        () => {
+          setIsLoading(false)
+          setPlayingTestCaseId(null) // Reset button state after successful send
+          setStatus(`Agent 2 started running saved test case "${testCase.name}".`)
+        },
+        (error: any) => {
+          console.error('Failed to send play message to Agent 2:', error)
+          setIsLoading(false)
+          setPlayingTestCaseId(null) // Reset button state on error
+          setStatus('Failed to send play message to Agent 2. Check browser console.')
+        }
+      )
+    } catch (error) {
+      console.error('Play test case error:', error)
+      setIsLoading(false)
+      setPlayingTestCaseId(null) // Reset button state on exception
+      setStatus('Failed to send play message to Agent 2. Check browser console.')
+    }
   }
 
   const canGenerate = Boolean(connection && instruction.trim())
@@ -623,14 +746,6 @@ SharePoint CSV Link:
                 style={!canGenerate || isLoading ? styles.primaryButtonDisabled : styles.primaryButton}
               >
                 {isLoading ? 'Generating...' : 'Generate Output'}
-              </button>
-
-              <button
-                onClick={approveAndSave}
-                disabled={!canApprove || isLoading}
-                style={!canApprove || isLoading ? styles.successButtonDisabled : styles.successButton}
-              >
-                Approve & Save
               </button>
             </div>
           </div>
@@ -694,6 +809,42 @@ SharePoint CSV Link:
           <div style={styles.outputCard}>
             <div style={styles.outputHeader}>
               <div>
+                <h2 style={styles.cardTitle}>Generated Test Case Preview</h2>
+                <p style={styles.cardDescription}>Review the generated CSV and Agent 2 instruction before saving.</p>
+              </div>
+              <span style={styles.outputTagPurple}>Preview</span>
+            </div>
+
+            <div style={styles.previewSection}>
+              <div style={styles.previewLabel}>Generated CSV</div>
+              <textarea
+                value={csvOutput || 'Generate output to preview the CSV test cases.'}
+                readOnly
+                style={styles.csvBox}
+              />
+
+              <div style={styles.previewLabel}>Agent 2 instruction</div>
+              <textarea
+                value={agent2Instruction || 'Generate output to preview the Agent 2 execution instruction.'}
+                readOnly
+                style={styles.agentInstructionBox}
+              />
+
+              <div style={styles.buttonRow}>
+                <button
+                  onClick={approveAndSave}
+                  disabled={!canApprove || isLoading || currentOutputSaved}
+                  style={!canApprove || isLoading || currentOutputSaved ? styles.successButtonDisabled : styles.successButton}
+                >
+                  {currentOutputSaved ? 'Saved' : 'Approve & Save'}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div style={styles.outputCard}>
+            <div style={styles.outputHeader}>
+              <div>
                 <h2 style={styles.cardTitle}>Saved Test Cases</h2>
                 <p style={styles.cardDescription}>Each approved save creates a row you can run later.</p>
               </div>
@@ -705,32 +856,70 @@ SharePoint CSV Link:
                 <div style={styles.emptyState}>No saved test cases yet. Approve & Save to create one.</div>
               ) : (
                 savedTestCases.map(testCase => (
-                  <div key={testCase.id} style={styles.savedRow}>
+                  <div
+                    key={testCase.id}
+                    style={styles.savedRow}
+                    onClick={() => handleSelectSavedTestCase(testCase)}
+                    role='button'
+                    tabIndex={0}
+                    onKeyDown={event => {
+                      if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault()
+                        handleSelectSavedTestCase(testCase)
+                      }
+                    }}
+                  >
                     <div style={styles.savedRowName}>{testCase.name}</div>
-                    <button onClick={() => handlePlaySavedTestCase(testCase)} style={styles.playButton}>
-                      ▶
+                    <button
+                      onClick={event => {
+                        event.stopPropagation()
+                        handlePlaySavedTestCase(testCase)
+                      }}
+                      style={playingTestCaseId === testCase.id ? styles.playButtonLoading : styles.playButton}
+                      disabled={playingTestCaseId === testCase.id}
+                      type='button'
+                    >
+                      {playingTestCaseId === testCase.id ? '⏳' : '▶'}
                     </button>
                   </div>
                 ))
               )}
             </div>
-          </div>
 
-          <div style={styles.outputCard}>
-            <div style={styles.outputHeader}>
-              <div>
-                <h2 style={styles.cardTitle}>Agent 2 Execution Instruction</h2>
-                <p style={styles.cardDescription}>Instruction saved for later execution by Agent 2.</p>
+            {selectedSavedTestCase && (
+              <div style={styles.detailCard}>
+                <div style={styles.outputHeader}>
+                  <div>
+                    <h2 style={styles.cardTitle}>Selected Saved Case</h2>
+                    <p style={styles.cardDescription}>{selectedSavedTestCase.name}</p>
+                  </div>
+                  <button
+                    type='button'
+                    onClick={() => clearSelectedSavedTestCase()}
+                    style={styles.closeButton}
+                  >
+                    ✕
+                  </button>
+                </div>
+
+                <div style={styles.previewLabel}>Name</div>
+                <div style={styles.detailValue}>{selectedSavedTestCase.name}</div>
+
+                <div style={styles.previewLabel}>CSV Preview</div>
+                <textarea
+                  value={selectedSavedTestCase.csvContent}
+                  readOnly
+                  style={styles.detailTextArea}
+                />
+
+                <div style={styles.previewLabel}>Agent 2 Instruction</div>
+                <textarea
+                  value={selectedSavedTestCase.instruction}
+                  readOnly
+                  style={styles.detailTextArea}
+                />
               </div>
-              <span style={styles.outputTagPurple}>Instruction</span>
-            </div>
-
-            <textarea
-              value={agent2Instruction}
-              onChange={event => setAgent2Instruction(event.target.value)}
-              style={styles.agentInstructionBox}
-              placeholder='Agent 2 execution instruction will appear here...'
-            />
+            )}
           </div>
 
           <details style={styles.detailsBox}>
@@ -1055,7 +1244,8 @@ const styles: { [key: string]: React.CSSProperties } = {
     padding: '12px 14px',
     borderRadius: '14px',
     border: '1px solid #e2e8f0',
-    background: '#f8fafc'
+    background: '#f8fafc',
+    cursor: 'pointer'
   },
   savedRowName: {
     fontSize: '14px',
@@ -1076,6 +1266,58 @@ const styles: { [key: string]: React.CSSProperties } = {
     fontWeight: 900,
     cursor: 'pointer',
     boxShadow: '0 8px 16px rgba(37,99,235,0.24)'
+  },
+  previewSection: {
+    marginTop: '14px',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '10px'
+  },
+  previewLabel: {
+    fontSize: '12px',
+    fontWeight: 800,
+    color: '#64748b',
+    textTransform: 'uppercase'
+  },
+  detailCard: {
+    marginTop: '14px',
+    border: '1px solid #e2e8f0',
+    borderRadius: '14px',
+    padding: '14px',
+    background: '#f8fafc'
+  },
+  detailValue: {
+    fontSize: '14px',
+    fontWeight: 700,
+    color: '#0f172a',
+    whiteSpace: 'pre-wrap',
+    marginBottom: '12px'
+  },
+  detailTextArea: {
+    width: '100%',
+    minHeight: '140px',
+    resize: 'vertical',
+    boxSizing: 'border-box',
+    border: '1px solid #cbd5e1',
+    borderRadius: '14px',
+    padding: '14px',
+    fontSize: '13px',
+    lineHeight: 1.5,
+    fontFamily: 'Consolas, Monaco, monospace',
+    outline: 'none',
+    background: '#ffffff',
+    color: '#0f172a'
+  },
+  closeButton: {
+    border: 'none',
+    borderRadius: '999px',
+    width: '34px',
+    height: '34px',
+    background: '#e2e8f0',
+    color: '#334155',
+    fontSize: '16px',
+    fontWeight: 800,
+    cursor: 'pointer'
   },
   emptyState: {
     padding: '16px',
@@ -1142,7 +1384,19 @@ const styles: { [key: string]: React.CSSProperties } = {
     outline: 'none',
     background: '#020617',
     color: '#a7f3d0'
-  }
+  },
+  playButtonLoading: {
+    border: 'none',
+    borderRadius: '999px',
+    width: '40px',
+    height: '40px',
+    background: '#94a3b8', // Gray background for loading state
+    color: '#ffffff',
+    fontSize: '16px',
+    fontWeight: 900,
+    cursor: 'not-allowed',
+    boxShadow: 'none'
+  },
 }
 
 export default Chat
