@@ -45,7 +45,6 @@ export class SampleConnectionSettings extends ConnectionSettings {
 
     // App Registration Client ID
     this.appClientId = '5e69a3e2-b3bc-4ae2-8df9-557556be7cd5'
-    this.agent2DirectLineSecret = '2o2d3I6NtTAQv70DoykNdzVayGKATfnIbDP3m7n5onJYky2pDY18JQQJ99CGAC4f1cMAArohAAABAZBS3QsV.DvhYPqCmQatoHZ7xrYr2jq90pI6McQIl5Nn2XPHwdckHxe8ZVt5PJQQJ99CGAC4f1cMAArohAAABAZBSETOx'
 
 
 
