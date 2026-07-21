@@ -6,8 +6,9 @@
 import React, { useState, useEffect } from 'react'
 import { CopilotStudioClient, CopilotStudioWebChat, CopilotStudioWebChatConnection } from '@microsoft/agents-copilotstudio-client'
 
-import { acquireExchangeToken } from './acquireToken'
+import { acquireExchangeToken,acquireToken } from './acquireToken'
 import { SampleConnectionSettings } from './settings'
+
 
 type ConsentCardInfo = {
   title: string
@@ -277,7 +278,7 @@ function Chat() {
     async function connectToAgent() {
       try {
 
-        const token = await acquireExchangeToken(agentsSettings,'')
+        const token = await acquireToken(agentsSettings)
         const client = new CopilotStudioClient(agentsSettings, token)
         const newConnection = CopilotStudioWebChat.createConnection(client, webchatSettings)
 
@@ -356,7 +357,7 @@ function Chat() {
         try {
           const agent2Settings = new SampleConnectionSettings()
           agent2Settings.directConnectUrl = agent2Settings.directConnectUrl2 || ''
-          const agent2Token = await acquireExchangeToken(agent2Settings, 'api://3c53f3ef-3f2f-494d-87c3-195e1a9ca5b9/copilot.studio.scope')
+          const agent2Token = await acquireToken(agent2Settings)
           const agent2Client = new CopilotStudioClient(agent2Settings, agent2Token)
           const newConnection2 = CopilotStudioWebChat.createConnection(agent2Client, webchatSettings)
 
@@ -384,7 +385,7 @@ function Chat() {
                   const exchangeToken = await acquireExchangeToken(agent2Settings, exchange.uri)
 
                   const invokeActivity = {
-                    type: 'invoke',
+                    type: 'event',
                     name: 'signin/tokenExchange',
                     value: {
                       id: exchange.id,
