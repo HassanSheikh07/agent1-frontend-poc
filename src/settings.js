@@ -14,48 +14,47 @@ window.localStorage.debug = 'copilot-studio:*'
 
 
 export class SampleConnectionSettings extends ConnectionSettings {
-  constructor () {
-   super({
-     // Leave these empty because we are using directConnectUrl
-     environmentId: '',
-     schemaName: '',
+  constructor() {
+    super({
+      // Leave these empty because we are using directConnectUrl
+      environmentId: '',
+      schemaName: '',
 
 
 
-     // Paste the Connection string copied from:
-     // Channels → Web app → Microsoft 365 Agents SDK → Connection string
-     directConnectUrl: 'https://20bbbb7691c1efdebf328a54683361.04.environment.api.powerplatform.com/copilotstudio/dataverse-backed/authenticated/bots/cr720_Agent1TestScript/conversations?api-version=2022-03-01-preview',
-     directConnectUrl2 : 'https://20bbbb7691c1efdebf328a54683361.04.environment.api.powerplatform.com/copilotstudio/dataverse-backed/authenticated/bots/cr720_Agent2UITesting/conversations?api-version=2022-03-01-preview',
-     
+      // Paste the Connection string copied from:
+      // Channels → Web app → Microsoft 365 Agents SDK → Connection string
+      directConnectUrl: 'https://20bbbb7691c1efdebf328a54683361.04.environment.api.powerplatform.com/copilotstudio/dataverse-backed/authenticated/bots/cr720_Agent1TestScript/conversations?api-version=2022-03-01-preview',
+      directConnectUrl2: 'https://20bbbb7691c1efdebf328a54683361.04.environment.api.powerplatform.com/copilotstudio/dataverse-backed/authenticated/bots/cr720_Agent2UITesting/conversations?api-version=2022-03-01-preview',
 
-
-     // Leave default/empty for normal commercial cloud
-     cloud: '',
-     customPowerPlatformCloud: '',
-
-
-
-     // Published agent
-     copilotAgentType: 'Published',
+      // Leave default/empty for normal commercial cloud
+      cloud: '',
+      customPowerPlatformCloud: '',
 
 
 
-     useExperimentalEndpoint: false
-   })
+      // Published agent
+      copilotAgentType: 'Published',
 
 
 
-   // App Registration Client ID
-   this.appClientId = '5e69a3e2-b3bc-4ae2-8df9-557556be7cd5'
+      useExperimentalEndpoint: false
+    })
 
 
 
-   // Tenant ID where the Copilot Studio agent exists
-   this.tenantId = 'edda99bb-bab6-4c4c-8aa1-4b99e8e09c1b'
+    // App Registration Client ID
+    this.appClientId = '5e69a3e2-b3bc-4ae2-8df9-557556be7cd5'
+    this.agent2DirectLineSecret = '2o2d3I6NtTAQv70DoykNdzVayGKATfnIbDP3m7n5onJYky2pDY18JQQJ99CGAC4f1cMAArohAAABAZBS3QsV.DvhYPqCmQatoHZ7xrYr2jq90pI6McQIl5Nn2XPHwdckHxe8ZVt5PJQQJ99CGAC4f1cMAArohAAABAZBSETOx'
 
 
 
-   // Usually keep this empty, or set it explicitly
-   this.authority = 'https://login.microsoftonline.com'
+    // Tenant ID where the Copilot Studio agent exists
+    this.tenantId = 'edda99bb-bab6-4c4c-8aa1-4b99e8e09c1b'
+
+
+
+    // Usually keep this empty, or set it explicitly
+    this.authority = 'https://login.microsoftonline.com'
   }
 }

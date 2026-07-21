@@ -6,9 +6,9 @@
 import React, { useState, useEffect } from 'react'
 import { CopilotStudioClient, CopilotStudioWebChat, CopilotStudioWebChatConnection } from '@microsoft/agents-copilotstudio-client'
 
-import { acquireExchangeToken,acquireToken } from './acquireToken'
+import { acquireToken } from './acquireToken'
 import { SampleConnectionSettings } from './settings'
-
+import { DirectLine } from 'botframework-directlinejs'
 
 type ConsentCardInfo = {
   title: string
@@ -267,6 +267,9 @@ function Chat() {
   const [savedTestCases, setSavedTestCases] = useState<SavedTestCase[]>([])
   const [selectedSavedTestCase, setSelectedSavedTestCase] = useState<SavedTestCase | null>(null)
   const [currentOutputSaved, setCurrentOutputSaved] = useState(false)
+  const [agent2SignInUrl, setAgent2SignInUrl] = useState<string | null>(null)
+  const [agent2Responses, setAgent2Responses] = useState('')
+  const [magicCode, setMagicCode] = useState('')
 
   const webchatSettings = { showTyping: true }
 
@@ -354,67 +357,61 @@ function Chat() {
         setConnection(newConnection)
         setStatus('Connected to Agent 1.')
 
+        // ----- Agent 2 via classic Direct Line (channel secret; no user sign-in) -----
         try {
           const agent2Settings = new SampleConnectionSettings()
-          agent2Settings.directConnectUrl = agent2Settings.directConnectUrl2 || ''
-          const agent2Token = await acquireToken(agent2Settings)
-          const agent2Client = new CopilotStudioClient(agent2Settings, agent2Token)
-          const newConnection2 = CopilotStudioWebChat.createConnection(agent2Client, webchatSettings)
+          const dlSecret = (agent2Settings as any).agent2DirectLineSecret as string
+
+          if (!dlSecret) {
+            throw new Error('Missing agent2DirectLineSecret in settings.js')
+          }
+
+          // The Direct Line channel secret is the app-level identity that lets the
+          // CUA be invoked. No OAuth card, no user sign-in, no popup. The CUA uses
+          // its own maker-provided credentials for F&O / browser / etc.
+          const directLine2 = new DirectLine({ secret: dlSecret })
 
           if (!cancelled) {
-            const directLineConnection2 = newConnection2 as any
+            activitySubscription2 = directLine2.activity$.subscribe(
+              (activity: any) => {
+                console.log('Incoming activity from Agent 2 (Direct Line):', activity)
 
-            // Attempt each unique sign-in card only once, to avoid consent-popup loops
-            const handledExchangeIds = new Set<string>()
-
-            activitySubscription2 = directLineConnection2.activity$.subscribe(async (activity: any) => {
-              console.log('Incoming activity from Agent 2:', activity)
-
-              const oauthCard = activity?.attachments?.find(
-                (att: any) => att?.contentType === 'application/vnd.microsoft.card.oauth'
-              )
-              const content = oauthCard?.content
-              const exchange = content?.tokenExchangeResource
-
-              // Only the Entra ID token-exchange (SSO) variant; skip if already tried this id
-              if (exchange?.uri && exchange?.id && !handledExchangeIds.has(exchange.id)) {
-                handledExchangeIds.add(exchange.id)
-                setStatus('Signing in to Agent 2 silently...')
-
-                try {
-                  const exchangeToken = await acquireExchangeToken(agent2Settings, exchange.uri)
-
-                  const invokeActivity = {
-                    type: 'event',
-                    name: 'signin/tokenExchange',
-                    value: {
-                      id: exchange.id,
-                      connectionName: content.connectionName,
-                      token: exchangeToken,
-                    },
-                    from: { id: 'frontend-user', name: 'Frontend User', role: 'user' },
+                // Agent 2's OAuth sign-in card fires even over Direct Line (Manual-auth gate).
+                const oauthCard = activity?.attachments?.find(
+                  (att: any) => att?.contentType === 'application/vnd.microsoft.card.oauth'
+                )
+                if (oauthCard) {
+                  const signInButton =
+                    oauthCard.content?.buttons?.find((b: any) => b?.type === 'signin') ||
+                    oauthCard.content?.buttons?.[0]
+                  if (signInButton?.value) {
+                    console.log('Agent 2 sign-in URL:', signInButton.value)
+                    setAgent2SignInUrl(signInButton.value)
+                    setStatus('Agent 2 needs sign-in to run the CUA. Click "Sign in to Agent 2".')
                   }
-
-                  directLineConnection2.postActivity(invokeActivity).subscribe(
-                    () => setStatus('Agent 2 sign-in completed. Running test case...'),
-                    (error: any) => {
-                      console.error('Agent 2 token exchange rejected:', error)
-                      // Fallback available at: content.buttons?.[0]?.value
-                      setStatus('Silent sign-in failed. Manual login may be required.')
-                    }
-                  )
-                } catch (exchangeError) {
-                  console.error('Could not acquire Agent 2 exchange token:', exchangeError)
-                  setStatus('Silent sign-in unavailable — check the copilot.studio.scope permission/consent.')
+                  return
                 }
-                return
-              }
-            })
 
-            setConnection2(newConnection2)
+                // Show Agent 2 (bot) replies so you can watch the CUA run.
+                if (activity?.type === 'message' && activity?.from?.role === 'bot' && activity?.text) {
+                  setAgent2Responses((prev: string) =>
+                    prev ? prev + '\n\n----------\n\n' + activity.text : activity.text
+                  )
+                }
+              },
+              (err: any) => {
+                console.error('Agent 2 Direct Line stream error:', err)
+              }
+            )
+
+            // DirectLine.postActivity(...).subscribe(...) is API-compatible with the
+            // existing Play flow, so handlePlaySavedTestCase needs no changes.
+            setConnection2(directLine2 as any)
+            setStatus('Connected to Agent 1 and Agent 2.')
           }
         } catch (agent2Error) {
-          console.error('Failed to connect Agent 2:', agent2Error)
+          console.error('Failed to connect Agent 2 via Direct Line:', agent2Error)
+          setStatus('Agent 1 connected; Agent 2 (Direct Line) failed - check console.')
         }
       } catch (error) {
         console.error(error)
@@ -684,6 +681,28 @@ SharePoint CSV Link:
 
   function clearSelectedSavedTestCase() {
     setSelectedSavedTestCase(null)
+  }
+
+  function submitAgent2Code() {
+    if (!connection2 || !magicCode.trim()) {
+      return
+    }
+    const dl = connection2 as any
+    dl.postActivity({
+      type: 'message',
+      from: { id: 'frontend-user', name: 'Frontend User', role: 'user' },
+      text: magicCode.trim(),
+    }).subscribe(
+      () => {
+        setStatus('Sign-in code submitted to Agent 2.')
+        setMagicCode('')
+        setAgent2SignInUrl(null)
+      },
+      (e: any) => {
+        console.error('Failed to submit sign-in code:', e)
+        setStatus('Failed to submit sign-in code. Check console.')
+      }
+    )
   }
 
   function handlePlaySavedTestCase(testCase: SavedTestCase) {
@@ -964,6 +983,50 @@ ${testCase.instruction}
               </div>
             )}
           </div>
+
+          {(agent2SignInUrl || agent2Responses) && (
+            <div style={styles.outputCard}>
+              <div style={styles.outputHeader}>
+                <div>
+                  <h2 style={styles.cardTitle}>Agent 2 (CUA)</h2>
+                  <p style={styles.cardDescription}>Sign in if prompted, then watch Agent 2 respond.</p>
+                </div>
+              </div>
+
+              {agent2SignInUrl && (
+                <div style={{ marginBottom: 16 }}>
+                  <div style={styles.buttonRow}>
+                    <button
+                      onClick={() => { window.open(agent2SignInUrl, 'agent2-signin', 'width=520,height=680') }}
+                      style={styles.successButton}
+                    >
+                      Sign in to Agent 2
+                    </button>
+                    <button onClick={() => setAgent2SignInUrl(null)} style={styles.cancelButton}>
+                      Dismiss
+                    </button>
+                  </div>
+                  <div style={{ marginTop: 12 }}>
+                    <div style={styles.previewLabel}>Validation code (from the sign-in popup)</div>
+                    <div style={styles.buttonRow}>
+                      <input
+                        value={magicCode}
+                        onChange={(e) => setMagicCode(e.target.value)}
+                        placeholder='e.g. 954858'
+                        style={{ flex: 1, padding: '8px 10px', borderRadius: 6, border: '1px solid #ccc' }}
+                      />
+                      <button onClick={() => submitAgent2Code()} style={styles.successButton}>
+                        Submit code
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div style={styles.previewLabel}>Agent 2 responses</div>
+              <textarea value={agent2Responses} readOnly style={styles.rawResponseBox} />
+            </div>
+          )}
 
           <details style={styles.detailsBox}>
             <summary style={styles.detailsSummary}>View full raw Agent 1 response</summary>
