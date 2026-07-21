@@ -6,7 +6,7 @@
 import React, { useState, useEffect } from 'react'
 import { CopilotStudioClient, CopilotStudioWebChat, CopilotStudioWebChatConnection } from '@microsoft/agents-copilotstudio-client'
 
-import { acquireToken } from './acquireToken'
+import { acquireExchangeToken } from './acquireToken'
 import { SampleConnectionSettings } from './settings'
 
 type ConsentCardInfo = {
@@ -277,7 +277,7 @@ function Chat() {
     async function connectToAgent() {
       try {
 
-        const token = await acquireToken(agentsSettings)
+        const token = await acquireExchangeToken(agentsSettings,'')
         const client = new CopilotStudioClient(agentsSettings, token)
         const newConnection = CopilotStudioWebChat.createConnection(client, webchatSettings)
 
@@ -356,16 +356,58 @@ function Chat() {
         try {
           const agent2Settings = new SampleConnectionSettings()
           agent2Settings.directConnectUrl = agent2Settings.directConnectUrl2 || ''
-          const agent2Token = await acquireToken(agent2Settings)
+          const agent2Token = await acquireExchangeToken(agent2Settings, 'api://3c53f3ef-3f2f-494d-87c3-195e1a9ca5b9/copilot.studio.scope')
           const agent2Client = new CopilotStudioClient(agent2Settings, agent2Token)
           const newConnection2 = CopilotStudioWebChat.createConnection(agent2Client, webchatSettings)
 
           if (!cancelled) {
-            // Subscribe to Agent 2 to initialize the connection properly
             const directLineConnection2 = newConnection2 as any
-            activitySubscription2 = directLineConnection2.activity$.subscribe((activity: any) => {
-              // You can log Agent 2's responses here if you want to track its execution status
+
+            // Attempt each unique sign-in card only once, to avoid consent-popup loops
+            const handledExchangeIds = new Set<string>()
+
+            activitySubscription2 = directLineConnection2.activity$.subscribe(async (activity: any) => {
               console.log('Incoming activity from Agent 2:', activity)
+
+              const oauthCard = activity?.attachments?.find(
+                (att: any) => att?.contentType === 'application/vnd.microsoft.card.oauth'
+              )
+              const content = oauthCard?.content
+              const exchange = content?.tokenExchangeResource
+
+              // Only the Entra ID token-exchange (SSO) variant; skip if already tried this id
+              if (exchange?.uri && exchange?.id && !handledExchangeIds.has(exchange.id)) {
+                handledExchangeIds.add(exchange.id)
+                setStatus('Signing in to Agent 2 silently...')
+
+                try {
+                  const exchangeToken = await acquireExchangeToken(agent2Settings, exchange.uri)
+
+                  const invokeActivity = {
+                    type: 'invoke',
+                    name: 'signin/tokenExchange',
+                    value: {
+                      id: exchange.id,
+                      connectionName: content.connectionName,
+                      token: exchangeToken,
+                    },
+                    from: { id: 'frontend-user', name: 'Frontend User', role: 'user' },
+                  }
+
+                  directLineConnection2.postActivity(invokeActivity).subscribe(
+                    () => setStatus('Agent 2 sign-in completed. Running test case...'),
+                    (error: any) => {
+                      console.error('Agent 2 token exchange rejected:', error)
+                      // Fallback available at: content.buttons?.[0]?.value
+                      setStatus('Silent sign-in failed. Manual login may be required.')
+                    }
+                  )
+                } catch (exchangeError) {
+                  console.error('Could not acquire Agent 2 exchange token:', exchangeError)
+                  setStatus('Silent sign-in unavailable — check the copilot.studio.scope permission/consent.')
+                }
+                return
+              }
             })
 
             setConnection2(newConnection2)

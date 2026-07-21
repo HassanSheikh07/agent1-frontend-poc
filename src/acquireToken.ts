@@ -1,34 +1,31 @@
 /**
- * Copyright (c) Microsoft Corporation. All rights reserved.
- * Licensed under the MIT License.
+ * Acquires an Entra ID token scoped to the agent's Token Exchange URL,
+ * reusing the account the user already signed in with at launch.
  */
 import { PublicClientApplication, InteractionRequiredAuthError } from '@azure/msal-browser'
-import { CopilotStudioClient } from '@microsoft/agents-copilotstudio-client'
-
 import { SampleConnectionSettings } from './settings'
 
-export async function acquireToken (settings: SampleConnectionSettings) {
+export async function acquireExchangeToken (
+  settings: SampleConnectionSettings,
+  exchangeScopeUri: string            // e.g. api://3c53f3ef-.../copilot.studio.scope
+): Promise<string> {
   const msalInstance = new PublicClientApplication({
     auth: {
       clientId: settings.appClientId,
       authority: `${settings.authority}/${settings.tenantId}`,
     },
   })
-
   await msalInstance.initialize()
-  const loginRequest = {
-    scopes: [CopilotStudioClient.scopeFromSettings(settings)],
+
+  const request = {
+    scopes: [exchangeScopeUri],
     redirectUri: window.location.origin,
   }
-  // When there are not accounts or the acquireTokenSilent fails,
-  // it will fall back to loginPopup.
+
   try {
     const accounts = await msalInstance.getAllAccounts()
     if (accounts.length > 0) {
-      const response = await msalInstance.acquireTokenSilent({
-        ...loginRequest,
-        account: accounts[0],
-      })
+      const response = await msalInstance.acquireTokenSilent({ ...request, account: accounts[0] })
       return response.accessToken
     }
   } catch (e) {
@@ -37,6 +34,7 @@ export async function acquireToken (settings: SampleConnectionSettings) {
     }
   }
 
-  const response = await msalInstance.loginPopup(loginRequest)
+  // First run before admin consent, or silent failure → one interactive consent
+  const response = await msalInstance.acquireTokenPopup(request)
   return response.accessToken
 }
