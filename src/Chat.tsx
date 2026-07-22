@@ -6,7 +6,7 @@
 import React, { useState, useEffect } from 'react'
 import { CopilotStudioClient, CopilotStudioWebChat, CopilotStudioWebChatConnection } from '@microsoft/agents-copilotstudio-client'
 
-import { acquireToken } from './acquireToken'
+import { acquireToken, acquireTokenForResource } from './acquireToken'
 import { SampleConnectionSettings } from './settings'
 import { DirectLine } from 'botframework-directlinejs'
 
@@ -232,6 +232,62 @@ function extractConsentCardInfo(activity: any): ConsentCardInfo | null {
   }
 }
 
+/**
+ * Silent SSO for Agent 2:
+ * When the OAuth card carries a tokenExchangeResource, acquire a token for that
+ * resource via MSAL and post a signin/tokenExchange invoke. Returns true when
+ * the exchange was posted, false when the card has no usable exchange data so
+ * the caller can fall back to the manual sign-in URL + magic code flow.
+ */
+async function tryHandleAgent2TokenExchange(
+  oauthCard: any,
+  directLine: any,
+  settings: SampleConnectionSettings
+): Promise<boolean> {
+  const tokenExchangeResource = oauthCard?.content?.tokenExchangeResource
+  const resourceUri = tokenExchangeResource?.uri
+  const tokenExchangeId = tokenExchangeResource?.id
+  const connectionName = oauthCard?.content?.connectionName
+
+  if (!resourceUri || !tokenExchangeId || !connectionName) {
+    console.warn('[Agent 2] OAuth card found, but token exchange data is incomplete.')
+    return false
+  }
+
+  console.log('[Agent 2] OAuth token exchange requested for:', resourceUri)
+
+  const token = await acquireTokenForResource(settings, resourceUri)
+
+  const tokenExchangeActivity = {
+    type: 'invoke',
+    name: 'signin/tokenExchange',
+    from: {
+      id: 'frontend-user',
+      name: 'Frontend User',
+      role: 'user'
+    },
+    value: {
+      id: tokenExchangeId,
+      connectionName,
+      token
+    }
+  }
+
+  await new Promise<void>((resolve, reject) => {
+    directLine.postActivity(tokenExchangeActivity).subscribe(
+      (id: any) => {
+        console.log('[Agent 2] Token exchange activity accepted:', id)
+        resolve()
+      },
+      (error: any) => {
+        reject(error)
+      }
+    )
+  })
+
+  return true
+}
+
 function Chat() {
   let agentsSettings: SampleConnectionSettings
 
@@ -381,14 +437,33 @@ function Chat() {
                   (att: any) => att?.contentType === 'application/vnd.microsoft.card.oauth'
                 )
                 if (oauthCard) {
-                  const signInButton =
-                    oauthCard.content?.buttons?.find((b: any) => b?.type === 'signin') ||
-                    oauthCard.content?.buttons?.[0]
-                  if (signInButton?.value) {
-                    console.log('Agent 2 sign-in URL:', signInButton.value)
-                    setAgent2SignInUrl(signInButton.value)
-                    setStatus('Agent 2 needs sign-in to run the CUA. Click "Sign in to Agent 2".')
+                  const fallbackToManualSignIn = () => {
+                    const signInButton =
+                      oauthCard.content?.buttons?.find((b: any) => b?.type === 'signin') ||
+                      oauthCard.content?.buttons?.[0]
+                    if (signInButton?.value) {
+                      console.log('Agent 2 sign-in URL:', signInButton.value)
+                      setAgent2SignInUrl(signInButton.value)
+                      setStatus('Agent 2 needs sign-in to run the CUA. Click "Sign in to Agent 2".')
+                    }
                   }
+
+                  setStatus('Signing in to Agent 2 automatically...')
+
+                  tryHandleAgent2TokenExchange(oauthCard, directLine2, agent2Settings)
+                    .then(exchanged => {
+                      if (exchanged) {
+                        setAgent2SignInUrl(null)
+                        setStatus('Agent 2 signed in via token exchange.')
+                      } else {
+                        fallbackToManualSignIn()
+                      }
+                    })
+                    .catch((exchangeError: any) => {
+                      console.error('Agent 2 token exchange failed, falling back to manual sign-in:', exchangeError)
+                      fallbackToManualSignIn()
+                    })
+
                   return
                 }
 
