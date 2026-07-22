@@ -89,7 +89,7 @@ function handleAgent2Activity(
 ): void {
   console.log('Incoming activity from Agent 2 (Direct Line):', activity)
 
-  // Agent 2's OAuth sign-in card fires even over Direct Line (Manual-auth gate).
+ 
   const oauthCard = findOAuthCard(activity)
 
   if (oauthCard) {
@@ -120,24 +120,18 @@ function handleAgent2Activity(
     return
   }
 
-  // Show Agent 2 (bot) replies so you can watch the CUA run.
+
   if (activity?.type === 'message' && activity?.from?.role === 'bot' && activity?.text) {
     handlers.onAgent2Message(activity.text)
   }
 }
 
-/**
- * Connects to Agent 1 (Copilot Studio, user-authenticated) and Agent 2 (classic
- * Direct Line, channel secret) once on mount, and reports everything the agents
- * send back through the supplied handlers.
- */
+
 export function useAgentConnections(handlers: AgentConnectionHandlers) {
   const [settings] = useState<SampleConnectionSettings>(createConnectionSettings)
   const [connection, setConnection] = useState<CopilotStudioWebChatConnection | null>(null)
   const [connection2, setConnection2] = useState<DirectLine | null>(null)
 
-  // Handlers are re-created on every render; the ref keeps the connect effect
-  // from tearing down and reconnecting each time.
   const handlersRef = useRef<AgentConnectionHandlers>(handlers)
 
   useEffect(() => {
