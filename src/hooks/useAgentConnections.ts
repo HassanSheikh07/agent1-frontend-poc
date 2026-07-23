@@ -3,7 +3,7 @@
  * Licensed under the MIT License.
  */
 
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   CopilotStudioClient,
   CopilotStudioWebChat,
@@ -17,8 +17,9 @@ import { createConnectionSettings, getAgent2DirectLineSecret } from '../lib/conn
 import { extractConsentCardInfo, findOAuthCard, getSignInUrl, stringifyActivity } from '../lib/activityUtils'
 import { extractBetween, extractCsvFileName } from '../lib/textExtraction'
 import { isFrontendUserActivity } from '../lib/directLineClient'
+import { Agent2StreamProcessor, createAgent2StreamProcessor, isAgent2RunFinished } from '../lib/agent2Stream'
 import { SampleConnectionSettings } from '../settings'
-import { Agent1Result, ConsentCardInfo } from '../types'
+import { Agent1Result, Agent2StreamEntry, ConsentCardInfo } from '../types'
 
 const WEBCHAT_SETTINGS = { showTyping: true }
 
@@ -30,7 +31,8 @@ export interface AgentConnectionHandlers {
   onAgent1Result(result: Agent1Result): void
   onAgent2SignInRequired(signInUrl: string): void
   onAgent2SignedIn(): void
-  onAgent2Message(text: string): void
+  onAgent2Stream(entries: Agent2StreamEntry[]): void
+  onAgent2RunFinished(): void
 }
 
 function extractAgent1Result(botText: string): Agent1Result {
@@ -85,8 +87,13 @@ function handleAgent2Activity(
   activity: any,
   connection: DirectLine,
   settings: SampleConnectionSettings,
+  streamProcessor: Agent2StreamProcessor,
   handlers: AgentConnectionHandlers
 ): void {
+  /*
+   * This log is essential during R&D because screenshots may be sent through
+   * a non-message activity.
+   */
   console.log('Incoming activity from Agent 2 (Direct Line):', activity)
 
  
@@ -120,9 +127,23 @@ function handleAgent2Activity(
     return
   }
 
+  /*
+   * Fold the activity into the ordered stream. Every activity type is
+   * inspected, not just messages, because screenshots can arrive on events.
+   */
+  const nextEntries = streamProcessor.process(activity)
 
-  if (activity?.type === 'message' && activity?.from?.role === 'bot' && activity?.text) {
-    handlers.onAgent2Message(activity.text)
+  if (nextEntries) {
+    handlers.onAgent2Stream(nextEntries)
+  }
+
+  /*
+   * Checked after stream processing so the final message (completion summary
+   * or error card) lands in the entry list before the run is marked finished.
+   */
+  if (isAgent2RunFinished(activity)) {
+    console.log('[Agent 2] Run finished marker received:', activity?.id)
+    handlers.onAgent2RunFinished()
   }
 }
 
@@ -133,6 +154,11 @@ export function useAgentConnections(handlers: AgentConnectionHandlers) {
   const [connection2, setConnection2] = useState<DirectLine | null>(null)
 
   const handlersRef = useRef<AgentConnectionHandlers>(handlers)
+  const streamProcessorRef = useRef<Agent2StreamProcessor | null>(null)
+
+  const clearAgent2Stream = useCallback(() => {
+    streamProcessorRef.current?.reset()
+  }, [])
 
   useEffect(() => {
     handlersRef.current = handlers
@@ -160,9 +186,13 @@ export function useAgentConnections(handlers: AgentConnectionHandlers) {
           return
         }
 
+        // One processor per connection so a reconnect starts a fresh stream.
+        const streamProcessor = createAgent2StreamProcessor()
+        streamProcessorRef.current = streamProcessor
+
         activitySubscription2 = directLine2.activity$.subscribe(
           (activity: any) => {
-            handleAgent2Activity(activity, directLine2, settings, handlersRef.current)
+            handleAgent2Activity(activity, directLine2, settings, streamProcessor, handlersRef.current)
           },
           (error: any) => {
             console.error('Agent 2 Direct Line stream error:', error)
@@ -217,5 +247,5 @@ export function useAgentConnections(handlers: AgentConnectionHandlers) {
     }
   }, [settings])
 
-  return { connection, connection2 }
+  return { connection, connection2, clearAgent2Stream }
 }

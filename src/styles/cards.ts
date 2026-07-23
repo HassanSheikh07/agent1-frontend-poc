@@ -145,5 +145,39 @@ export const cardStyles: { [key: string]: React.CSSProperties } = {
     cursor: 'pointer',
     fontWeight: 800,
     color: '#334155'
+  },
+  streamList: {
+    marginTop: '14px',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '14px',
+    maxHeight: '540px',
+    overflowY: 'auto'
+  },
+  streamEntry: {
+    border: '1px solid #e2e8f0',
+    borderRadius: '14px',
+    padding: '14px',
+    background: '#f8fafc',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '10px'
+  },
+  streamEntryText: {
+    fontSize: '14px',
+    color: '#0f172a',
+    lineHeight: 1.6,
+    whiteSpace: 'pre-wrap'
+  },
+  streamEntryNote: {
+    fontSize: '12px',
+    color: '#b45309',
+    fontWeight: 600
+  },
+  screenshotImage: {
+    maxWidth: '100%',
+    borderRadius: '10px',
+    border: '1px solid #cbd5e1',
+    background: '#ffffff'
   }
 }
