@@ -8,6 +8,10 @@ import {
   containsScreenshotReference,
   extractScreenshotUrls
 } from './screenshotExtraction'
+import {
+  ADAPTIVE_CARD_CONTENT_TYPE,
+  collectTextFromCard
+} from './activityUtils'
 
 export type Agent2StreamProcessor = {
   /**
@@ -15,12 +19,64 @@ export type Agent2StreamProcessor = {
    * updated list, or null when the activity carried nothing worth showing.
    */
   process(activity: any): Agent2StreamEntry[] | null
+
+  /**
+   * Drops all accumulated entries so the next run starts a fresh stream.
+   */
+  reset(): void
+}
+
+/**
+ * True when the activity marks the end of an Agent 2 (CUA) run. Copilot Studio
+ * attaches channelData.feedbackLoop to final answers — both completion
+ * summaries and terminal error cards carry it, intermediate progress comments
+ * do not.
+ */
+export function isAgent2RunFinished(activity: any): boolean {
+  return (
+    activity?.from?.role === 'bot' &&
+    activity?.type === 'message' &&
+    Boolean(activity?.channelData?.feedbackLoop)
+  )
+}
+
+/**
+ * Some final messages (status summaries, error reports) carry their text
+ * inside an Adaptive Card body instead of activity.text.
+ */
+function getAdaptiveCardText(activity: any): string | undefined {
+  const attachments = Array.isArray(activity?.attachments)
+    ? activity.attachments
+    : []
+
+  for (const attachment of attachments) {
+    if (
+      attachment?.contentType !== ADAPTIVE_CARD_CONTENT_TYPE ||
+      !attachment.content
+    ) {
+      continue
+    }
+
+    const combined = collectTextFromCard(attachment.content).join('\n').trim()
+
+    if (combined) {
+      return combined
+    }
+
+    const fallbackText = attachment.content.fallbackText
+
+    if (typeof fallbackText === 'string' && fallbackText.trim()) {
+      return fallbackText.trim()
+    }
+  }
+
+  return undefined
 }
 
 function getActivityText(activity: any): string | undefined {
   const text = typeof activity?.text === 'string' ? activity.text.trim() : ''
 
-  return text || undefined
+  return text || getAdaptiveCardText(activity)
 }
 
 function getActivityTimestamp(activity: any): string {
@@ -56,6 +112,11 @@ export function createAgent2StreamProcessor(): Agent2StreamProcessor {
   }
 
   return {
+    reset(): void {
+      entries = []
+      sequence = 0
+    },
+
     process(activity: any): Agent2StreamEntry[] | null {
       /*
        * Ignore the user's own activities. Bot messages and bot/system events

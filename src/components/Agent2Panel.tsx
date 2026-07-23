@@ -11,10 +11,12 @@ import { Agent2StreamEntry } from '../types'
 type Agent2PanelProps = {
   signInUrl: string | null
   entries: Agent2StreamEntry[]
+  isRunning: boolean
   magicCode: string
   onMagicCodeChange: (magicCode: string) => void
   onSubmitMagicCode: () => void
   onDismissSignIn: () => void
+  onClearRun: () => void
 }
 
 /**
@@ -25,10 +27,12 @@ type Agent2PanelProps = {
 function Agent2Panel({
   signInUrl,
   entries,
+  isRunning,
   magicCode,
   onMagicCodeChange,
   onSubmitMagicCode,
-  onDismissSignIn
+  onDismissSignIn,
+  onClearRun
 }: Agent2PanelProps) {
   const screenshotCount = entries.reduce(
     (total, entry) => total + entry.screenshots.length,
@@ -41,6 +45,14 @@ function Agent2Panel({
         <div>
           <h2 style={styles.cardTitle}>Agent 2 (CUA)</h2>
           <p style={styles.cardDescription}>Sign in if prompted, then watch Agent 2 respond.</p>
+        </div>
+        <div style={styles.buttonRow}>
+          <span style={isRunning ? styles.outputTagPurple : styles.outputTag}>
+            {isRunning ? 'Running' : 'Finished'}
+          </span>
+          <button onClick={onClearRun} style={styles.cancelButton} type='button'>
+            Clear run
+          </button>
         </div>
       </div>
 

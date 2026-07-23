@@ -44,6 +44,7 @@ function Chat() {
   const [currentOutputSaved, setCurrentOutputSaved] = useState(false)
   const [agent2SignInUrl, setAgent2SignInUrl] = useState<string | null>(null)
   const [agent2Entries, setAgent2Entries] = useState<Agent2StreamEntry[]>([])
+  const [agent2Running, setAgent2Running] = useState(false)
   const [magicCode, setMagicCode] = useState('')
 
   const connectionHandlers: AgentConnectionHandlers = {
@@ -85,10 +86,15 @@ function Chat() {
       setStatus('Agent 2 signed in via token exchange.')
     },
 
-    onAgent2Stream: setAgent2Entries
+    onAgent2Stream: setAgent2Entries,
+
+    onAgent2RunFinished: () => {
+      setAgent2Running(false)
+      setStatus('Agent 2 finished the test case run.')
+    }
   }
 
-  const { connection, connection2 } = useAgentConnections(connectionHandlers)
+  const { connection, connection2, clearAgent2Stream } = useAgentConnections(connectionHandlers)
 
   function sendMessageToAgent(message: string) {
     if (!connection) {
@@ -202,11 +208,29 @@ function Chat() {
       })
   }
 
+  function clearAgent2Run() {
+    clearAgent2Stream()
+    setAgent2Entries([])
+    setAgent2Running(false)
+  }
+
   function handlePlaySavedTestCase(testCase: SavedTestCase) {
     if (!connection2) {
       setStatus('Agent 2 connection is not ready yet.')
       return
     }
+
+    /*
+     * Never wipe a run that is still in progress. The user can wait for the
+     * finish marker or press "Clear run" to discard it explicitly.
+     */
+    if (agent2Running) {
+      setStatus(`Agent 2 is still running a test case. Wait for it to finish (or use "Clear run") before starting "${testCase.name}".`)
+      return
+    }
+
+    // The previous run has finished, so clear its output before starting.
+    clearAgent2Run()
 
     setPlayingTestCaseId(testCase.id)
     setIsLoading(true)
@@ -216,6 +240,7 @@ function Chat() {
       .then(() => {
         setIsLoading(false)
         setPlayingTestCaseId(null)
+        setAgent2Running(true)
         setStatus(`Agent 2 started running saved test case "${testCase.name}".`)
       })
       .catch((error: any) => {
@@ -284,10 +309,15 @@ function Chat() {
             <Agent2Panel
               signInUrl={agent2SignInUrl}
               entries={agent2Entries}
+              isRunning={agent2Running}
               magicCode={magicCode}
               onMagicCodeChange={setMagicCode}
               onSubmitMagicCode={submitAgent2Code}
               onDismissSignIn={() => setAgent2SignInUrl(null)}
+              onClearRun={() => {
+                clearAgent2Run()
+                setStatus('Agent 2 run cleared.')
+              }}
             />
           )}
 
