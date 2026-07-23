@@ -14,7 +14,7 @@ import {
   buildPlayTestCasePrompt,
   buildRevisionPrompt
 } from './lib/prompts'
-import { ConsentCardInfo, SavedTestCase } from './types'
+import { Agent2StreamEntry, ConsentCardInfo, SavedTestCase } from './types'
 import { styles } from './styles'
 
 import AppHeader from './components/AppHeader'
@@ -27,7 +27,6 @@ import Agent2Panel from './components/Agent2Panel'
 import RawResponsePanel from './components/RawResponsePanel'
 
 const RAW_ACTIVITY_SEPARATOR = '\n\n---------------------- RAW ACTIVITY ----------------------\n\n'
-const AGENT2_RESPONSE_SEPARATOR = '\n\n----------\n\n'
 
 function Chat() {
   const [playingTestCaseId, setPlayingTestCaseId] = useState<number | null>(null)
@@ -44,7 +43,7 @@ function Chat() {
   const [selectedSavedTestCase, setSelectedSavedTestCase] = useState<SavedTestCase | null>(null)
   const [currentOutputSaved, setCurrentOutputSaved] = useState(false)
   const [agent2SignInUrl, setAgent2SignInUrl] = useState<string | null>(null)
-  const [agent2Responses, setAgent2Responses] = useState('')
+  const [agent2Entries, setAgent2Entries] = useState<Agent2StreamEntry[]>([])
   const [magicCode, setMagicCode] = useState('')
 
   const connectionHandlers: AgentConnectionHandlers = {
@@ -86,11 +85,7 @@ function Chat() {
       setStatus('Agent 2 signed in via token exchange.')
     },
 
-    onAgent2Message: text => {
-      setAgent2Responses(previous => {
-        return previous ? previous + AGENT2_RESPONSE_SEPARATOR + text : text
-      })
-    }
+    onAgent2Stream: setAgent2Entries
   }
 
   const { connection, connection2 } = useAgentConnections(connectionHandlers)
@@ -285,10 +280,10 @@ function Chat() {
             onPlay={handlePlaySavedTestCase}
           />
 
-          {(agent2SignInUrl || agent2Responses) && (
+          {(agent2SignInUrl || agent2Entries.length > 0) && (
             <Agent2Panel
               signInUrl={agent2SignInUrl}
-              responses={agent2Responses}
+              entries={agent2Entries}
               magicCode={magicCode}
               onMagicCodeChange={setMagicCode}
               onSubmitMagicCode={submitAgent2Code}

@@ -7,14 +7,7 @@ import { SampleConnectionSettings } from '../settings'
 import { acquireTokenForResource } from './acquireToken'
 import { FRONTEND_USER, postActivity } from '../lib/directLineClient'
 
-/**
- * Silent SSO for Agent 2.
- *
- * When the OAuth card carries a tokenExchangeResource, acquire a token for that
- * resource via MSAL and post a signin/tokenExchange invoke. Returns true when
- * the exchange was posted, false when the card has no usable exchange data so
- * the caller can fall back to the manual sign-in URL + magic code flow.
- */
+
 export async function tryHandleAgent2TokenExchange(
   oauthCard: any,
   connection: any,

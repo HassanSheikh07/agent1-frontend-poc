@@ -16,10 +16,6 @@ export function stringifyActivity(activity: any): string {
   }
 }
 
-/**
- * Walks an Adaptive Card and returns every piece of display text it contains,
- * so consent wording can be matched without depending on the card's layout.
- */
 export function collectTextFromCard(node: any): string[] {
   const texts: string[] = []
 
@@ -189,10 +185,7 @@ export function findOAuthCard(activity: any): any | null {
   return oauthCard || null
 }
 
-/**
- * The sign-in URL shown when an OAuth card cannot be satisfied by a silent
- * token exchange.
- */
+
 export function getSignInUrl(oauthCard: any): string | null {
   const signInButton =
     oauthCard?.content?.buttons?.find((button: any) => button?.type === 'signin') ||

@@ -43,10 +43,7 @@ export async function acquireToken(settings: SampleConnectionSettings): Promise<
   return response.accessToken
 }
 
-/**
- * EXCHANGE-scoped token — used ONLY for the signin/tokenExchange invoke.
- * The resource URI comes from the OAuth card's tokenExchangeResource.uri.
- */
+
 export async function acquireTokenForResource(
   settings: SampleConnectionSettings,
   resourceScope: string

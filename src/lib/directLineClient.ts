@@ -24,11 +24,7 @@ export function createUserMessageActivity(text: string, extra: Record<string, an
   }
 }
 
-/**
- * Promise wrapper over the observable postActivity of both connection types.
- * A connection can also throw synchronously, which is surfaced as a rejection
- * rather than an uncaught error.
- */
+
 export function postActivity(connection: any, activity: any): Promise<string> {
   return new Promise((resolve, reject) => {
     try {
