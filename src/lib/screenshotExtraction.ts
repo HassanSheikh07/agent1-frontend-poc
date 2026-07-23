@@ -16,12 +16,6 @@ function isRecord(value: any): value is Record<string, any> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
-/**
- * Accepts data:/blob: URLs outright; plain http(s) URLs only count as images
- * when they either sit in an image-flavoured spot in the payload or end in an
- * image file extension. This keeps ordinary hyperlinks out of the screenshot
- * list.
- */
 function normalizeImageUrl(value: string, imageContext: boolean): string | null {
   const url = value.trim()
 
@@ -46,17 +40,7 @@ function normalizeImageUrl(value: string, imageContext: boolean): string | null 
   return null
 }
 
-/**
- * Searches nested data for image URLs.
- *
- * This supports screenshots that may be placed in:
- * - attachment.contentUrl
- * - attachment.content
- * - Adaptive Card Image.url
- * - channelData
- * - value
- * - entities
- */
+
 function collectImageUrls(
   value: any,
   output: Set<string>,
@@ -149,10 +133,6 @@ export function extractScreenshotUrls(activity: any): string[] {
 
     collectImageUrls(attachment.content, urls, attachmentIsImage)
 
-    /*
-     * Some channels place custom screenshot metadata directly on the
-     * attachment instead of inside attachment.content.
-     */
     collectImageUrls(attachment, urls, attachmentIsImage)
   }
 
