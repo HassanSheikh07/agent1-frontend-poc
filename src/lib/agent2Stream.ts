@@ -26,17 +26,24 @@ export type Agent2StreamProcessor = {
   reset(): void
 }
 
+
+const RUN_FINISHED_TEXT_PATTERN = /computer use task is finished/i
+
 /**
- * True when the activity marks the end of an Agent 2 (CUA) run. Copilot Studio
- * attaches channelData.feedbackLoop to final answers — both completion
- * summaries and terminal error cards carry it, intermediate progress comments
- * do not.
+ * True when the activity marks the end of an Agent 2 (CUA) run.
+ *
+ * channelData.feedbackLoop alone is not enough: intermediate screenshot
+ * attachments carry it too, so the run would be marked finished on the first
+ * bot message. Only the closing "Computer use task is finished" message
+ * reliably terminates a run.
  */
 export function isAgent2RunFinished(activity: any): boolean {
   return (
     activity?.from?.role === 'bot' &&
     activity?.type === 'message' &&
-    Boolean(activity?.channelData?.feedbackLoop)
+    Boolean(activity?.channelData?.feedbackLoop) &&
+    typeof activity?.text === 'string' &&
+    RUN_FINISHED_TEXT_PATTERN.test(activity.text)
   )
 }
 

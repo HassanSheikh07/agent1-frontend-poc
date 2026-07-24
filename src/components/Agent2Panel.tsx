@@ -16,6 +16,7 @@ type Agent2PanelProps = {
   onMagicCodeChange: (magicCode: string) => void
   onSubmitMagicCode: () => void
   onDismissSignIn: () => void
+  onDownloadScreenshots: () => void
   onClearRun: () => void
 }
 
@@ -32,6 +33,7 @@ function Agent2Panel({
   onMagicCodeChange,
   onSubmitMagicCode,
   onDismissSignIn,
+  onDownloadScreenshots,
   onClearRun
 }: Agent2PanelProps) {
   const screenshotCount = entries.reduce(
@@ -50,6 +52,11 @@ function Agent2Panel({
           <span style={isRunning ? styles.outputTagPurple : styles.outputTag}>
             {isRunning ? 'Running' : 'Finished'}
           </span>
+          {screenshotCount > 0 && (
+            <button onClick={onDownloadScreenshots} style={styles.successButton} type='button'>
+              Download screenshots
+            </button>
+          )}
           <button onClick={onClearRun} style={styles.cancelButton} type='button'>
             Clear run
           </button>

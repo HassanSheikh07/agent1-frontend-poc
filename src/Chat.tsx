@@ -3,10 +3,11 @@
  * Licensed under the MIT License.
  */
 
-import React, { useState } from 'react'
+import React, { useRef, useState } from 'react'
 
 import { useAgentConnections, AgentConnectionHandlers } from './hooks/useAgentConnections'
 import { createUserMessageActivity, postActivity } from './lib/directLineClient'
+import { downloadRunScreenshots } from './lib/screenshotArchive'
 import { extractCsvFileName } from './lib/textExtraction'
 import {
   buildApprovalPrompt,
@@ -47,6 +48,43 @@ function Chat() {
   const [agent2Running, setAgent2Running] = useState(false)
   const [magicCode, setMagicCode] = useState('')
 
+  /*
+   * The Direct Line handlers below run outside React's render cycle, so they
+   * would see stale state. These refs always hold the latest stream entries
+   * and the name of the test case (script) the current run belongs to.
+   */
+  const agent2EntriesRef = useRef<Agent2StreamEntry[]>([])
+  const agent2RunNameRef = useRef('')
+
+  /**
+   * Packages the current run's screenshots into a ZIP download whose top-level
+   * folder is named after the executed script, so the run survives the stream
+   * being cleared by the next run.
+   */
+  function persistRunScreenshots(trigger: 'auto' | 'manual') {
+    const runName = agent2RunNameRef.current || 'agent2-run'
+
+    downloadRunScreenshots(runName, agent2EntriesRef.current)
+      .then(result => {
+        if (result.totalScreenshots === 0) {
+          if (trigger === 'manual') {
+            setStatus('The current Agent 2 run has no screenshots to download.')
+          }
+          return
+        }
+
+        const failedNote = result.failedUrls.length > 0
+          ? ` ${result.failedUrls.length} could not be fetched - see failed-screenshots.txt inside the ZIP.`
+          : ''
+
+        setStatus(`Saved ${result.savedCount} of ${result.totalScreenshots} screenshots from "${runName}" to a ZIP download.${failedNote}`)
+      })
+      .catch((error: any) => {
+        console.error('Failed to build the screenshot ZIP:', error)
+        setStatus('Failed to build the screenshot ZIP. Check browser console.')
+      })
+  }
+
   const connectionHandlers: AgentConnectionHandlers = {
     onStatusChange: setStatus,
 
@@ -86,11 +124,15 @@ function Chat() {
       setStatus('Agent 2 signed in via token exchange.')
     },
 
-    onAgent2Stream: setAgent2Entries,
+    onAgent2Stream: entries => {
+      agent2EntriesRef.current = entries
+      setAgent2Entries(entries)
+    },
 
     onAgent2RunFinished: () => {
       setAgent2Running(false)
-      setStatus('Agent 2 finished the test case run.')
+      setStatus('Agent 2 finished the test case run. Saving screenshots...')
+      persistRunScreenshots('auto')
     }
   }
 
@@ -210,6 +252,7 @@ function Chat() {
 
   function clearAgent2Run() {
     clearAgent2Stream()
+    agent2EntriesRef.current = []
     setAgent2Entries([])
     setAgent2Running(false)
   }
@@ -232,6 +275,7 @@ function Chat() {
     // The previous run has finished, so clear its output before starting.
     clearAgent2Run()
 
+    agent2RunNameRef.current = testCase.name
     setPlayingTestCaseId(testCase.id)
     setIsLoading(true)
     setStatus(`Running saved test case "${testCase.name}" via Agent 2...`)
@@ -314,6 +358,7 @@ function Chat() {
               onMagicCodeChange={setMagicCode}
               onSubmitMagicCode={submitAgent2Code}
               onDismissSignIn={() => setAgent2SignInUrl(null)}
+              onDownloadScreenshots={() => persistRunScreenshots('manual')}
               onClearRun={() => {
                 clearAgent2Run()
                 setStatus('Agent 2 run cleared.')
