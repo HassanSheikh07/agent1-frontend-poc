@@ -12,6 +12,7 @@ type GeneratedPreviewCardProps = {
   agent2Instruction: string
   canApprove: boolean
   isLoading: boolean
+  isSaving: boolean
   isSaved: boolean
   onApproveAndSave: () => void
 }
@@ -21,11 +22,12 @@ function GeneratedPreviewCard({
   agent2Instruction,
   canApprove,
   isLoading,
+  isSaving,
   isSaved,
   onApproveAndSave
 }: GeneratedPreviewCardProps) {
   const disabled =
-    !canApprove || isLoading || isSaved
+    !canApprove || isLoading || isSaving || isSaved
 
   return (
     <section
@@ -115,15 +117,24 @@ function GeneratedPreviewCard({
               : styles.successButton
           }
         >
-          <span
-            className='relay-button__icon'
-            aria-hidden='true'
-          >
-            ✓
-          </span>
-          {isSaved
-            ? 'Package saved'
-            : 'Approve and save'}
+          {isSaving ? (
+            <span
+              className='relay-spinner'
+              aria-hidden='true'
+            />
+          ) : (
+            <span
+              className='relay-button__icon'
+              aria-hidden='true'
+            >
+              ✓
+            </span>
+          )}
+          {isSaving
+            ? 'Saving package…'
+            : isSaved
+              ? 'Package saved'
+              : 'Approve and save'}
         </button>
       </div>
     </section>

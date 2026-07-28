@@ -15,7 +15,7 @@ import { acquireToken } from '../auth/acquireToken'
 import { tryHandleAgent2TokenExchange } from '../auth/agent2TokenExchange'
 import { createConnectionSettings, getAgent2DirectLineSecret } from '../lib/connectionSettings'
 import { extractConsentCardInfo, findOAuthCard, getSignInUrl, stringifyActivity } from '../lib/activityUtils'
-import { extractBetween, extractCsvFileName } from '../lib/textExtraction'
+import { extractBetween, extractCsvFileName, isSaveConfirmationText } from '../lib/textExtraction'
 import { isFrontendUserActivity } from '../lib/directLineClient'
 import { Agent2StreamProcessor, createAgent2StreamProcessor, isAgent2RunFinished, isAgent2RunThrottled } from '../lib/agent2Stream'
 import { SampleConnectionSettings } from '../settings'
@@ -29,6 +29,7 @@ export interface AgentConnectionHandlers {
   onRawActivity(rawActivity: string): void
   onConsentCard(consentCard: ConsentCardInfo): void
   onAgent1Result(result: Agent1Result): void
+  onAgent1SaveConfirmed(confirmationText: string): void
   onAgent2SignInRequired(signInUrl: string): void
   onAgent2SignedIn(): void
   onAgent2Stream(entries: Agent2StreamEntry[]): void
@@ -77,8 +78,15 @@ function handleAgent1Activity(activity: any, handlers: AgentConnectionHandlers):
   }
 
   if (activity?.type === 'message' && activity?.text) {
-    handlers.onAgent1Result(extractAgent1Result(activity.text))
     handlers.onLoadingChange(false)
+
+    
+    if (isSaveConfirmationText(activity.text)) {
+      handlers.onAgent1SaveConfirmed(activity.text)
+      return
+    }
+
+    handlers.onAgent1Result(extractAgent1Result(activity.text))
     handlers.onStatusChange('Agent 1 response received. Review the generated output.')
   }
 }
@@ -90,10 +98,7 @@ function handleAgent2Activity(
   streamProcessor: Agent2StreamProcessor,
   handlers: AgentConnectionHandlers
 ): void {
-  /*
-   * This log is essential during R&D because screenshots may be sent through
-   * a non-message activity.
-   */
+ 
   console.log('Incoming activity from Agent 2 (Direct Line):', activity)
 
  

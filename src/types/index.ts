@@ -38,12 +38,7 @@ export type Agent1Result = {
   testCaseName?: string
 }
 
-/**
- * One ordered item from the Agent 2 (CUA) activity stream: a comment and the
- * screenshots that belong to it, e.g.
- *
- * { text: 'Opening Apple iPhone page', screenshots: ['https://...'] }
- */
+
 export type Agent2StreamEntry = {
   id: string
   activityId?: string
@@ -51,10 +46,6 @@ export type Agent2StreamEntry = {
   text?: string
   screenshots: string[]
 
-  /**
-   * True when the text mentions a screenshot (e.g. 【11†screenshot】). This does
-   * not mean the actual image was included in the activity.
-   */
   hasScreenshotReference: boolean
 
   createdAt: string

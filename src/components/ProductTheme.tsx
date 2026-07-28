@@ -402,6 +402,33 @@ function ProductTheme() {
         --phase-color: var(--relay-teal);
       }
 
+      .relay-phase--active {
+        border-color: var(--phase-color, var(--relay-copper));
+        background: #fdf9f2;
+        box-shadow: 0 6px 16px rgba(45, 52, 64, .07);
+      }
+
+      .relay-phase--active::after {
+        height: 3px;
+      }
+
+      .relay-phase__dot {
+        display: inline-block;
+        width: 7px;
+        height: 7px;
+        margin-right: 6px;
+        border-radius: 50%;
+        background: var(--phase-color, var(--relay-copper));
+        vertical-align: middle;
+        animation: relay-phase-pulse 1.6s ease-out infinite;
+      }
+
+      @keyframes relay-phase-pulse {
+        0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--phase-color, var(--relay-copper)) 35%, transparent); }
+        70% { box-shadow: 0 0 0 6px transparent; }
+        100% { box-shadow: 0 0 0 0 transparent; }
+      }
+
       .relay-phase__label {
         color: #7b746c;
         font-family: Consolas, Monaco, monospace;
@@ -450,6 +477,23 @@ function ProductTheme() {
 
       .relay-connection-card--collapsed .relay-connection-status {
         margin-top: 0 !important;
+      }
+
+      .relay-status-dot {
+        width: 10px;
+        height: 10px;
+        flex: 0 0 10px;
+        border-radius: 50%;
+      }
+
+      .relay-status-dot--connected {
+        background: #2d9c72;
+        box-shadow: 0 0 0 5px rgba(45, 156, 114, .12);
+      }
+
+      .relay-status-dot--waiting {
+        background: #c28a2c;
+        box-shadow: 0 0 0 5px rgba(194, 138, 44, .12);
       }
 
       .relay-spinner {

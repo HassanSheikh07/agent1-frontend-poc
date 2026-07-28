@@ -24,7 +24,9 @@ export function extractBetween(text: string, startMarker: string, endMarker: str
 
 /**
  * Reads the test case name out of an Agent 1 reply, preferring "Script Name"
- * and falling back to "CSV File Name".
+ * and falling back to "CSV File Name". Handles both the "Script Name: value"
+ * form and the markdown table form ("| Script Name | value |") used in the
+ * final save-confirmation message.
  */
 export function extractCsvFileName(text: string): string {
   if (!text) {
@@ -34,19 +36,25 @@ export function extractCsvFileName(text: string): string {
   // Normalize string by removing markdown bolding and replacing escaped JSON newlines
   const cleanText = text.replace(/\\n/g, '\n').replace(/\*\*/g, '')
 
-  // Attempt to find Script Name first
-  const scriptNameMatch = cleanText.match(/Script Name:\s*([^\n\r]+)/i)
-  if (scriptNameMatch?.[1]) {
-    // Remove any trailing commas or quotes from JSON formatting
-    return scriptNameMatch[1].replace(/["',]+$/g, '').trim()
-  }
+  const patterns = [
+    /Script Name:\s*([^\n\r]+)/i,
+    /\|\s*Script Name\s*\|\s*([^|\n\r]+)\|/i,
+    /CSV File Name:\s*([^\n\r]+)/i,
+    /\|\s*CSV File Name\s*\|\s*([^|\n\r]+)\|/i
+  ]
 
-  // Fallback to CSV File Name
-  const csvFileNameMatch = cleanText.match(/CSV File Name:\s*([^\n\r]+)/i)
-  if (csvFileNameMatch?.[1]) {
-    // Remove any trailing commas or quotes from JSON formatting
-    return csvFileNameMatch[1].replace(/["',]+$/g, '').trim()
+  for (const pattern of patterns) {
+    const match = cleanText.match(pattern)
+
+    if (match?.[1]) {
+      // Remove any trailing commas or quotes from JSON formatting
+      return match[1].replace(/["',]+$/g, '').trim()
+    }
   }
 
   return ''
+}
+
+export function isSaveConfirmationText(text: string): boolean {
+  return /test script saved successfully/i.test(text || '')
 }

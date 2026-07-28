@@ -40,6 +40,7 @@ function Chat() {
   const [isLoading, setIsLoading] = useState(false)
   const [consentCard, setConsentCard] = useState<ConsentCardInfo | null>(null)
   const [savedTestCases, setSavedTestCases] = useState<SavedTestCase[]>([])
+  const [pendingSave, setPendingSave] = useState<SavedTestCase | null>(null)
   const [selectedSavedTestCase, setSelectedSavedTestCase] = useState<SavedTestCase | null>(null)
   const [currentOutputSaved, setCurrentOutputSaved] = useState(false)
   const [agent2SignInUrl, setAgent2SignInUrl] = useState<string | null>(null)
@@ -74,6 +75,25 @@ function Chat() {
       if (result.testCaseName) {
         setCurrentTestCaseName(result.testCaseName)
       }
+    },
+
+    onAgent1SaveConfirmed: confirmationText => {
+      if (!pendingSave) {
+        setStatus('Agent 1 confirmed a save, but no approval was pending.')
+        return
+      }
+
+      const confirmedName = extractCsvFileName(confirmationText) || pendingSave.name
+      const savedTestCase: SavedTestCase = {
+        ...pendingSave,
+        name: confirmedName
+      }
+
+      setSavedTestCases(previous => [...previous, savedTestCase])
+      setSelectedSavedTestCase(savedTestCase)
+      setCurrentOutputSaved(true)
+      setPendingSave(null)
+      setStatus(`Agent 1 saved test case "${confirmedName}". Added to the list.`)
     },
 
     onAgent2SignInRequired: signInUrl => {
@@ -180,18 +200,21 @@ function Chat() {
       return
     }
 
+    /*
+     * The test case is not added to the list yet: it is held as a pending
+     * save until Agent 1 confirms the SharePoint/Dataverse saves with its
+     * "Test script saved successfully" message.
+     */
     const resolvedName = getResolvedSavedName()
-    const savedTestCase: SavedTestCase = {
+
+    setPendingSave({
       id: Date.now(),
       name: resolvedName,
       csvContent: csvOutput,
       instruction: agent2Instruction
-    }
+    })
 
-    setSavedTestCases(previous => [...previous, savedTestCase])
-    setSelectedSavedTestCase(savedTestCase)
-    setCurrentOutputSaved(true)
-    setStatus(`Saved test case "${resolvedName}" to the list.`)
+    setStatus(`Approval sent. Waiting for Agent 1 to save "${resolvedName}"...`)
 
     sendMessageToAgent(buildApprovalPrompt())
   }
@@ -256,13 +279,38 @@ function Chat() {
       })
   }
 
+  /*
+   * Stage 1: authoring (nothing generated yet). Stage 2: a package exists
+   * and is under review/approval. Stage 3: the package is saved or a CUA
+   * run is in flight / has produced evidence.
+   */
+  const activeStage: 1 | 2 | 3 =
+    playingTestCaseId !== null ||
+    agent2Running ||
+    agent2Entries.length > 0 ||
+    currentOutputSaved
+      ? 3
+      : csvOutput.trim() || agent2Instruction.trim()
+        ? 2
+        : 1
+
   const canGenerate = Boolean(connection && instruction.trim())
   const canApprove = Boolean(connection && (csvOutput.trim() || agent2Instruction.trim()))
   const canRevise = Boolean(connection && feedback.trim())
 
   return (
     <div style={styles.page}>
-      <AppHeader status={status} isConnected={Boolean(connection)} />
+      <AppHeader
+        status={status}
+        isConnected={Boolean(connection)}
+        isBusy={
+          isLoading ||
+          agent2Running ||
+          playingTestCaseId !== null ||
+          pendingSave !== null
+        }
+        activeStage={activeStage}
+      />
 
       <div style={styles.grid}>
         <div style={styles.leftColumn}>
@@ -297,6 +345,7 @@ function Chat() {
             agent2Instruction={agent2Instruction}
             canApprove={canApprove}
             isLoading={isLoading}
+            isSaving={Boolean(pendingSave)}
             isSaved={currentOutputSaved}
             onApproveAndSave={approveAndSave}
           />
