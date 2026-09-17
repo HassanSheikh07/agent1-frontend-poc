@@ -24,8 +24,8 @@ export class SampleConnectionSettings extends ConnectionSettings {
 
       // Paste the Connection string copied from:
       // Channels → Web app → Microsoft 365 Agents SDK → Connection string
-      directConnectUrl: 'https://20bbbb7691c1efdebf328a54683361.04.environment.api.powerplatform.com/copilotstudio/dataverse-backed/authenticated/bots/cr720_Agent1TestScript/conversations?api-version=2022-03-01-preview',
-      directConnectUrl2: 'https://20bbbb7691c1efdebf328a54683361.04.environment.api.powerplatform.com/copilotstudio/dataverse-backed/authenticated/bots/cr720_Agent2UITesting/conversations?api-version=2022-03-01-preview',
+      directConnectUrl: 'https://e1035d94a890eee7868824702427f7.0a.environment.api.powerplatform.com/copilotstudio/dataverse-backed/authenticated/bots/cr720_Agent1TestScript/conversations?api-version=2022-03-01-preview',
+      directConnectUrl2: 'https://e1035d94a890eee7868824702427f7.0a.environment.api.powerplatform.com/copilotstudio/dataverse-backed/authenticated/bots/cr720_Agent1TestScript/conversations?api-version=2022-03-01-preview',
 
       // Leave default/empty for normal commercial cloud
       cloud: '',
@@ -44,13 +44,13 @@ export class SampleConnectionSettings extends ConnectionSettings {
 
 
     // App Registration Client ID
-    this.appClientId = '5e69a3e2-b3bc-4ae2-8df9-557556be7cd5'
+    this.appClientId = '0b36118d-8138-44c8-9619-cb78fc72ea8d'
 
 
 
     // Tenant ID where the Copilot Studio agent exists
-    this.tenantId = 'edda99bb-bab6-4c4c-8aa1-4b99e8e09c1b'
-        this.agent2DirectLineSecret = 'Ac8DM6sgFXDWVPlY5bIArDHQPySoTxnZPAX4N1Bv3NSSUvX3eXzHJQQJ99CHACi5YpzAArohAAABAZBS249u.AcrjQFaSCTj4MkyeaIi9unErLM4IM0exohTXLacaaUxNHKuC7OQnJQQJ99CHACi5YpzAArohAAABAZBSQHTx'
+    this.tenantId = 'cc7374ac-e69f-4e98-942a-1023569972ad'
+        this.agent2DirectLineSecret = '6f9DjF8X5MZmVEGtgdJQ0sY82VXosjxSecxaTK9d2Tmd835l0bdNJQQJ99CIAC3pKaRAArohAAABAZBS1sra.6GfYEU69emZCsLFaXQavokOpbmFly8O3D2TPG66hBstMnjPoGVvfJQQJ99CIAC3pKaRAArohAAABAZBSFPgK'
 
 
     // Usually keep this empty, or set it explicitly
