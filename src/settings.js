@@ -50,7 +50,7 @@ export class SampleConnectionSettings extends ConnectionSettings {
 
     // Tenant ID where the Copilot Studio agent exists
     this.tenantId = 'cc7374ac-e69f-4e98-942a-1023569972ad'
-        this.agent2DirectLineSecret = '6f9DjF8X5MZmVEGtgdJQ0sY82VXosjxSecxaTK9d2Tmd835l0bdNJQQJ99CIAC3pKaRAArohAAABAZBS1sra.6GfYEU69emZCsLFaXQavokOpbmFly8O3D2TPG66hBstMnjPoGVvfJQQJ99CIAC3pKaRAArohAAABAZBSFPgK'
+        this.agent2DirectLineSecret = 'DYqxlNQ5AdHj0YhEflObXfSIuTI0lyqu8VqHlpXxZxKC8ItLRmGRJQQJ99CIACi5YpzAArohAAABAZBS4CbI.44AfMhYWK1yoCfdPZ3Vjpe5TtlpHeph6PSifW2JuPrsFqATi0iUxJQQJ99CIACi5YpzAArohAAABAZBS436I'
 
 
     // Usually keep this empty, or set it explicitly
