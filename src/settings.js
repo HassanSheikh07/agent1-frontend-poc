@@ -25,7 +25,7 @@ export class SampleConnectionSettings extends ConnectionSettings {
       // Paste the Connection string copied from:
       // Channels → Web app → Microsoft 365 Agents SDK → Connection string
       directConnectUrl: 'https://e1035d94a890eee7868824702427f7.0a.environment.api.powerplatform.com/copilotstudio/dataverse-backed/authenticated/bots/cr720_Agent1TestScript/conversations?api-version=2022-03-01-preview',
-      directConnectUrl2: 'https://e1035d94a890eee7868824702427f7.0a.environment.api.powerplatform.com/copilotstudio/dataverse-backed/authenticated/bots/cr720_Agent1TestScript/conversations?api-version=2022-03-01-preview',
+      directConnectUrl2: 'https://e1035d94a890eee7868824702427f7.0a.environment.api.powerplatform.com/copilotstudio/dataverse-backed/authenticated/bots/cr720_Agent2UITesting/conversations?api-version=2022-03-01-preview',
 
       // Leave default/empty for normal commercial cloud
       cloud: '',
@@ -50,7 +50,7 @@ export class SampleConnectionSettings extends ConnectionSettings {
 
     // Tenant ID where the Copilot Studio agent exists
     this.tenantId = 'cc7374ac-e69f-4e98-942a-1023569972ad'
-        this.agent2DirectLineSecret = 'DYqxlNQ5AdHj0YhEflObXfSIuTI0lyqu8VqHlpXxZxKC8ItLRmGRJQQJ99CIACi5YpzAArohAAABAZBS4CbI.44AfMhYWK1yoCfdPZ3Vjpe5TtlpHeph6PSifW2JuPrsFqATi0iUxJQQJ99CIACi5YpzAArohAAABAZBS436I'
+        this.agent2DirectLineSecret = '02ayn7q8NClxQCpbjD9zSchDDWyLHyGK5J4dVNRCLNO3k3sXvmlyJQQJ99CIAC5T7U2AArohAAABAZBSpnQJ.AW5tFwm532DI3YYdz2uWWFxn7WOYKubu4P8w44PmV5TjgDutT2EvJQQJ99CIAC5T7U2AArohAAABAZBS2fiS'
 
 
     // Usually keep this empty, or set it explicitly
