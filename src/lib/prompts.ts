@@ -22,6 +22,7 @@ Important:
 - Do not call Dataverse yet.
 - Do not execute test cases.
 - Do not call Agent 2.
+- Do not ask for module name, status, use case, stage, version, application, or any other Dataverse field.
 - Create only the required output for the user request.
 
 Display both outputs and ask for approval.
@@ -62,6 +63,7 @@ Important:
 - Do not call Dataverse yet.
 - Do not execute test cases.
 - Do not call Agent 2.
+- Do not ask for module name, status, use case, stage, version, application, or any other Dataverse field.
 
 Show the revised CSV test cases and Agent 2 execution instruction again for approval.
 
@@ -93,26 +95,12 @@ Approved. Please proceed with saving.
 
 Use the final generated CSV test cases and Agent 2 execution instruction already generated in this conversation.
 
-Now follow the approved save process:
-1. Call the Save-Generated-CSV-To-SharePoint flow first.
-2. Pass only:
-   - csvFileName
-   - csvContent
-3. Do not pass Agent 2 instruction to the SharePoint flow.
-4. After the SharePoint flow returns the file link, save the Dataverse record using the existing Dataverse tool.
-5. Include the CSV content, Agent 2 execution instruction, source prompt, and SharePoint CSV link in Dataverse.
 
 Important:
 - Do not execute test cases.
 - Do not open Dynamics 365 Finance & Operations.
 - Do not use Computer Use.
 - Do not call Agent 2.
-
-Final response after saving:
-Test script saved successfully.
-Script Name:
-CSV File Name:
-SharePoint CSV Link:
 `
 }
 
